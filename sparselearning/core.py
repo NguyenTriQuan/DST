@@ -402,6 +402,7 @@ class Masking(object):
                 num_zeros = self.name2zeros[name]
                 k = 1 - math.ceil(num_zeros + num_remove)
                 mask = TopK.apply(tensor.abs(), k)
+                print(k, mask.sum())
 
                 if len(tensor.shape) == 4:
                     dim_in = (0,2,3)
