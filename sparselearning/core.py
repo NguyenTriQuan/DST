@@ -7,6 +7,7 @@ import copy
 
 import numpy as np
 import math
+import wandb
 
 def add_sparse_args(parser):
     parser.add_argument('--sparse', action='store_true', help='Enable sparse mode. Default: True.')
@@ -424,6 +425,8 @@ class Masking(object):
             P_out = torch.logsumexp(P_out, dim=0)
             if self.steps % self.prune_every_k_steps == 0:
                 print(f'eff nodes: {eff_nodes}, eff paths: {P_out}')
+                if self.args.wandb:
+                    wandb.log({'eff nodes': eff_nodes, 'eff paths': P_out})
         return self.args.alpha * eff_nodes.log() + (1-self.args.alpha) * P_out
 
     '''
@@ -618,6 +621,8 @@ class Masking(object):
                 print('Layerwise percentage of the fired weights of', name, 'is:', layer_fired_weights[name])
         total_fired_weights = ntotal_fired_weights/ntotal_weights
         print('The percentage of the total fired weights is:', total_fired_weights)
+        if self.args.wandb:
+            wandb.log({'fired weights': total_fired_weights})
         return layer_fired_weights, total_fired_weights
     
 import random

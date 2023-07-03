@@ -19,6 +19,7 @@ from sparselearning.utils import get_mnist_dataloaders, get_cifar10_dataloaders,
 import torchvision
 import torchvision.transforms as transforms
 import warnings
+import wandb
 warnings.filterwarnings("ignore", category=UserWarning)
 cudnn.benchmark = True
 cudnn.deterministic = True
@@ -110,9 +111,13 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
 
     # training summary
+    train_acc = 100. * correct / float(n)
+    train_loss = train_loss/batch_idx
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%)\n'.format(
         'Training summary' ,
-        train_loss/batch_idx, correct, n, 100. * correct / float(n)))
+        train_loss, correct, n, train_acc))
+    if args.wandb:
+        wandb.log({'train acc': train_acc, 'train loss': train_loss})
 
 def evaluate(args, model, device, test_loader, is_test_set=False):
     model.eval()
@@ -179,6 +184,7 @@ def main():
     parser.add_argument('--save-features', action='store_true', help='Resumes a saved model and saves its feature data to disk for plotting.')
     parser.add_argument('--bench', action='store_true', help='Enables the benchmarking of layers and estimates sparse speedups')
     parser.add_argument('--max-threads', type=int, default=10, help='How many threads to use for data loading.')
+    parser.add_argument('--wandb', action='store_true', help='logging results with wandb')
     # ITOP settings
     sparselearning.core.add_sparse_args(parser)
 
@@ -199,6 +205,18 @@ def main():
     print_and_log('\n\n')
     print_and_log('='*80)
     torch.manual_seed(args.seed)
+
+    if args.wandb:
+        wandb.login(key='74ac7eba00fea7e805a70861a86c7767406946c9')
+        name = f'{args.model}_{args.data}_{args.method}_lamb_{args.lamb}_alpha_{args.alpha}'
+        run = wandb.init(
+            # Set the project where this run will be logged
+            project='DST',
+            name=name,
+            # Track hyperparameters and run metadata
+            config=args
+        )
+    
     for i in range(args.iters):
         print_and_log("\nIteration start: {0}/{1}\n".format(i+1, args.iters))
 
@@ -296,6 +314,9 @@ def main():
                 torch.save(model.state_dict(), args.save)
 
             print_and_log('Current learning rate: {0}. Time taken for epoch: {1:.2f} seconds.\n'.format(optimizer.param_groups[0]['lr'], time.time() - t0))
+            
+            if args.wandb:
+                wandb.log({'epoch':epoch, 'val acc': val_acc})
         print('Testing model')
         model.load_state_dict(torch.load(args.save))
         evaluate(args, model, device, test_loader, is_test_set=True)
@@ -305,6 +326,9 @@ def main():
         for name in layer_fired_weights:
             print('The final percentage of fired weights in the layer', name, 'is:', layer_fired_weights[name])
         print('The final percentage of the total fired weights is:', total_fired_weights)
+
+        if args.wandb:
+            wandb.finish()
 
 if __name__ == '__main__':
    main()
