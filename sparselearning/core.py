@@ -416,7 +416,7 @@ class Masking(object):
                     P_out = P_out.view(P_out.shape[0], 1).expand(P_out.shape[0], mask.shape[1]//P_out.shape[0]).reshape(mask.shape[1])
                     eff_nodes_out = eff_nodes_out.view(eff_nodes_out.shape[0], 1).expand(eff_nodes_out.shape[0], mask.shape[1]//eff_nodes_out.shape[0]).reshape(mask.shape[1])
 
-                P_out = torch.logsumexp(torch.log(mask) + P_out.view(view_in), dim=dim_out)
+                P_out = torch.logsumexp(torch.log(mask+1e-9) + P_out.view(view_in), dim=dim_out)
                 eff_nodes_in = torch.clamp(torch.sum(mask, dim=dim_in) * eff_nodes_out, max=1)
                 eff_nodes += eff_nodes_in.sum()
                 eff_nodes_out = torch.clamp(torch.sum(mask * eff_nodes_in.view(view_in), dim=dim_out), max=1)
