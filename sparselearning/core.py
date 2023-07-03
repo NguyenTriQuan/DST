@@ -51,12 +51,12 @@ class TopK(torch.autograd.Function):
         # Get the supermask by sorting the scores and using the top k%
         out = scores.clone()
         _, idx = scores.flatten().sort()
-        j = int((1 - k) * scores.numel())
+        # j = int((1 - k) * scores.numel())
 
         # flat_out and out access the same memory.
         flat_out = out.flatten()
-        flat_out[idx[:j]] = 0
-        flat_out[idx[j:]] = 1
+        flat_out[idx[:k]] = 0
+        flat_out[idx[k:]] = 1
         return out
 
     @staticmethod
@@ -400,9 +400,8 @@ class Masking(object):
 
                 num_remove = math.ceil(self.death_rate*self.name2nonzeros[name])
                 num_zeros = self.name2zeros[name]
-                k = 1 - math.ceil(num_zeros + num_remove)
+                k = math.ceil(num_zeros + num_remove)
                 mask = TopK.apply(tensor.abs(), k)
-                print(k, mask.sum())
 
                 if len(tensor.shape) == 4:
                     dim_in = (0,2,3)
