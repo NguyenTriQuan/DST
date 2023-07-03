@@ -45,6 +45,24 @@ class LinearDecay(object):
         else:
             return death_rate
 
+class TopK(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, scores, k):
+        # Get the supermask by sorting the scores and using the top k%
+        out = scores.clone()
+        _, idx = scores.flatten().sort()
+        j = int((1 - k) * scores.numel())
+
+        # flat_out and out access the same memory.
+        flat_out = out.flatten()
+        flat_out[idx[:j]] = 0
+        flat_out[idx[j:]] = 1
+        return out
+
+    @staticmethod
+    def backward(ctx, g):
+        # send the gradient g straight-through on the backward pass.
+        return g, None
 
 class Masking(object):
     def __init__(self, optimizer, death_rate=0.3, growth_death_ratio=1.0, death_rate_decay=None, death_mode='magnitude', growth_mode='momentum', redistribution_mode='momentum', threshold=0.001, args=None):
@@ -236,7 +254,8 @@ class Masking(object):
         print('Removing 1D batch norms...')
         self.remove_type(nn.BatchNorm1d)
         self.init(mode=sparse_init, density=density)
-
+        # if 'npb' in self.args.method:
+        #     get_related_layers(module, (3,32,32))
 
     def remove_weight(self, name):
         if name in self.masks:
@@ -367,6 +386,39 @@ class Masking(object):
 
         self.apply_mask()
 
+    '''
+                    NPB
+    '''
+
+    def NPB_reg(self):
+        for module in self.modules:
+            eff_nodes = 0
+            P_out = torch.tensor(0).float().cuda()
+            eff_nodes_out = torch.tensor(1).float().cuda()
+            for name, tensor in module.named_parameters():
+                if len(tensor.shape) == 4:
+                    dim_in = (0,2,3)
+                    dim_out = (1,2,3)
+                    view_in = (1,-1,1,1)
+                else:
+                    dim_in = (0)
+                    dim_out = (1)
+                    view_in = (1,-1)
+
+                num_remove = math.ceil(self.death_rate*self.name2nonzeros[name])
+                num_zeros = self.name2zeros[name]
+                k = 1 - math.ceil(num_zeros + num_remove)
+                mask = TopK.apply(tensor.abs(), k)
+
+                P_out = torch.logsumexp(torch.log(mask) + P_out.view(view_in), dim=dim_out)
+                eff_nodes_in = torch.clamp(torch.sum(mask, dim=dim_in) * eff_nodes_out, max=1)
+                eff_nodes += eff_nodes_in.sum()
+                eff_nodes_out = torch.clamp(torch.sum(mask * eff_nodes_in.view(view_in), dim=dim_out), max=1)
+            eff_nodes += eff_nodes_out.sum()
+            P_out = torch.logsumexp(P_out, dim=0)
+            if self.steps % self.prune_every_k_steps == 0:
+                print(f'eff nodes: {eff_nodes}, eff paths: {P_out}')
+        return self.args.alpha * eff_nodes.log() + (1-self.args.alpha) * P_out
 
     '''
                     DEATH
@@ -561,3 +613,112 @@ class Masking(object):
         total_fired_weights = ntotal_fired_weights/ntotal_weights
         print('The percentage of the total fired weights is:', total_fired_weights)
         return layer_fired_weights, total_fired_weights
+    
+import random
+def get_related_layers(net, input_shape):
+    def stable_check(x1, x2):
+        eps = x1 * 1e-6
+        return abs(x1 - x2) < eps
+
+    def forward_hook(m, i, o):
+        m.output_idx = random.random() * m.input_idx
+        o[0] = o[0]*0 + m.output_idx
+        return
+    
+    def forward_pre_hook(m, i):
+        if len(i[0].shape) == 4:
+            m.input_idx = i[0][0,0,0,0].item()
+        else:
+            m.input_idx = i[0][0,0].item()
+        return (torch.zeros_like(i[0]))
+    
+    def forward_bn_hook(m, i, o):
+        o[0] = i[0]
+        return
+
+    handes = []
+    for m in net.modules():
+        if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
+            h1 = m.register_forward_pre_hook(forward_pre_hook)
+            h2 = m.register_forward_hook(forward_hook)
+            handes += [h1, h2]
+        if isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.BatchNorm1d):
+            h3 = m.register_forward_hook(forward_bn_hook)
+            handes += [h3]
+
+    c, h, w = input_shape
+    data = torch.ones((1, c, h, w), dtype=torch.float, device='cuda')
+    net.eval()
+    out = net(data)  
+    for h in handes:
+        h.remove()
+    
+    scores = [m for m in net.modules() if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d)]
+    for n, m in net.named_modules():
+        if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
+            # print(n, m.weight.shape, m.input_idx, m.output_idx)
+            m.name = n
+            m.prev_layers = []
+            m.next_layers = []
+    eps = 1e-3
+    for i in range(len(scores)):
+        for j in range(i):
+            # if abs(scores[i].input_idx - scores[j].output_idx) < eps:
+            if stable_check(scores[i].input_idx, scores[j].output_idx):
+                scores[i].prev_layers.append(scores[j])
+                scores[j].next_layers.append(scores[i])
+            else:
+                for k in range(j):
+                    # if abs(scores[i].input_idx - scores[j].output_idx - scores[k].output_idx) < eps:
+                    if stable_check(scores[i].input_idx, scores[j].output_idx + scores[k].output_idx):
+                        scores[i].prev_layers += [scores[j], scores[k]]
+                        scores[j].next_layers += [scores[i]]
+                        scores[k].next_layers += [scores[i]]
+
+                    # if abs(scores[i].input_idx - scores[j].output_idx - scores[k].input_idx) < eps:
+                    if stable_check(scores[i].input_idx, scores[j].output_idx + scores[k].input_idx):
+                        scores[i].prev_layers += [scores[j]] + scores[k].prev_layers
+                        scores[j].next_layers += [scores[i]]
+                        for g in scores[k].prev_layers:
+                            g.next_layers += [scores[i]]
+
+                    # if abs(scores[i].input_idx - scores[k].output_idx - scores[j].input_idx) < eps:
+                    if stable_check(scores[i].input_idx, scores[k].output_idx + scores[j].input_idx):
+                        scores[i].prev_layers += [scores[k]] + scores[j].prev_layers
+                        scores[k].next_layers += [scores[i]]
+                        for g in scores[j].prev_layers:
+                            g.next_layers += [scores[i]]
+
+                    # if abs(scores[i].input_idx - scores[j].input_idx - scores[k].input_idx) < eps:
+                    if stable_check(scores[i].input_idx, scores[j].input_idx + scores[k].input_idx):
+                        scores[i].prev_layers += scores[j].prev_layers + scores[k].prev_layers
+                        for g in scores[j].prev_layers:
+                            g.next_layers += [scores[i]]
+                        for g in scores[k].prev_layers:
+                            g.next_layers += [scores[i]]
+
+    net.prev_layers = []
+    for m in scores:
+        m.prev_layers = tuple(set(m.prev_layers))
+        m.next_layers = tuple(set(m.next_layers))
+        if len(m.prev_layers) != 0:
+            net.prev_layers.append(m.prev_layers)
+        print(m.name, m.weight.shape, m.input_idx, m.output_idx)
+        for j, n in enumerate(m.prev_layers):
+            print('prev', j, n.name, n.weight.shape, n.input_idx, n.output_idx)
+        for j, n in enumerate(m.next_layers):
+            print('next', j, n.name, n.weight.shape, n.input_idx, n.output_idx)
+        print()
+    
+    net.prev_layers = list(set(net.prev_layers))
+    for i, layers in enumerate(net.prev_layers):
+        if len(layers) == 0:
+            print(i, layers)
+        for m in layers:
+            print(i, m.name)
+
+    all_layers = []
+    for layers in net.prev_layers:
+        all_layers += list(layers)
+    for m in scores[:-1]:
+        assert m in all_layers

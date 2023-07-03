@@ -87,6 +87,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         output = model(data)
 
         loss = F.nll_loss(output, target)
+        if args.method == 'npb':
+            loss += args.lamb * mask.NPB_reg()
 
         train_loss += loss.item()
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
@@ -169,6 +171,9 @@ def main():
     parser.add_argument('--resume', type=str)
     parser.add_argument('--start-epoch', type=int, default=1)
     parser.add_argument('--model', type=str, default='')
+    parser.add_argument('--method', type=str, default='')
+    parser.add_argument('--alpha', type=float, default=0.5, required=False)
+    parser.add_argument('--lamb', type=float, default=0.001, required=False)
     parser.add_argument('--l2', type=float, default=5.0e-4)
     parser.add_argument('--iters', type=int, default=1, help='How many times the model should be run after each other. Default=1')
     parser.add_argument('--save-features', action='store_true', help='Resumes a saved model and saves its feature data to disk for plotting.')
