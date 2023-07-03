@@ -399,9 +399,10 @@ class Masking(object):
             for name, tensor in module.named_parameters():
                 if name not in self.masks: continue
 
-                num_remove = math.ceil(self.death_rate*self.name2nonzeros[name])
+                # num_remove = math.ceil(self.death_rate*self.name2nonzeros[name])
                 num_zeros = self.name2zeros[name]
-                k = math.ceil(num_zeros + num_remove)
+                # k = math.ceil(num_zeros + num_remove)
+                k = math.ceil(num_zeros)
                 mask = TopK.apply(tensor.abs(), k)
 
                 if len(tensor.shape) == 4:
