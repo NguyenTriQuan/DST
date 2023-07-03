@@ -282,7 +282,6 @@ def main():
         mask.truncate_weights()
         _, _ = mask.fired_masks_update()
         mask.print_nonzero_counts()
-        print(mask.masks.keys())
 
         for epoch in range(1, args.epochs*args.multiplier + 1):
             t0 = time.time()
