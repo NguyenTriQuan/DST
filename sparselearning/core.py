@@ -411,9 +411,9 @@ class Masking(object):
                     dim_in = (0)
                     dim_out = (1)
                     view_in = (1,-1)
-                    
+
                 if P_out.shape[0] != mask.shape[1]:
-                    P_out.view(P_out.shape[0], 1).expand(P_out.shape[0], mask.shape[1]//P_out.shape[0]).reshape(mask.shape[1])
+                    P_out = P_out.view(P_out.shape[0], 1).expand(P_out.shape[0], mask.shape[1]//P_out.shape[0]).reshape(mask.shape[1])
 
                 P_out = torch.logsumexp(torch.log(mask) + P_out.view(view_in), dim=dim_out)
                 eff_nodes_in = torch.clamp(torch.sum(mask, dim=dim_in) * eff_nodes_out, max=1)
