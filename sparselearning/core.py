@@ -396,6 +396,7 @@ class Masking(object):
             P_out = torch.tensor(0).float().cuda()
             eff_nodes_out = torch.tensor(1).float().cuda()
             for name, tensor in module.named_parameters():
+                if name not in self.masks: continue
                 if len(tensor.shape) == 4:
                     dim_in = (0,2,3)
                     dim_out = (1,2,3)
