@@ -117,7 +117,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         'Training summary' ,
         train_loss, correct, n, train_acc))
     if args.wandb:
-        wandb.log({'train acc': train_acc, 'train loss': train_loss})
+        wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch})
 
 def evaluate(args, model, device, test_loader, is_test_set=False):
     model.eval()
