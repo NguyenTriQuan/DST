@@ -424,7 +424,6 @@ class Masking(object):
                 eff_nodes_out = torch.clamp(torch.sum(mask * eff_nodes_in.view(view_in), dim=dim_out), max=1)
             eff_nodes += eff_nodes_out.sum()
             P_out = torch.logsumexp(P_out, dim=0)
-            print(eff_nodes, P_out)
             if self.steps % self.prune_every_k_steps == 0:
                 print(f'eff nodes: {eff_nodes}, eff paths: {P_out}')
                 if self.args.wandb:
