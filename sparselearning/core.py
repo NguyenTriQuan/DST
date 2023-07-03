@@ -394,7 +394,7 @@ class Masking(object):
         for module in self.modules:
             eff_nodes = 0
             P_out = torch.zeros(3).float().cuda()
-            eff_nodes_out = torch.tensor(1).float().cuda()
+            eff_nodes_out = torch.ones(3).float().cuda()
             for name, tensor in module.named_parameters():
                 if name not in self.masks: continue
 
@@ -414,6 +414,7 @@ class Masking(object):
 
                 if P_out.shape[0] != mask.shape[1]:
                     P_out = P_out.view(P_out.shape[0], 1).expand(P_out.shape[0], mask.shape[1]//P_out.shape[0]).reshape(mask.shape[1])
+                    eff_nodes_out = eff_nodes_out.view(eff_nodes_out.shape[0], 1).expand(eff_nodes_out.shape[0], mask.shape[1]//eff_nodes_out.shape[0]).reshape(mask.shape[1])
 
                 P_out = torch.logsumexp(torch.log(mask) + P_out.view(view_in), dim=dim_out)
                 eff_nodes_in = torch.clamp(torch.sum(mask, dim=dim_in) * eff_nodes_out, max=1)
