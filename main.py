@@ -157,6 +157,8 @@ def main():
                         help='number of epochs to train (default: 100)')
     parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='learning rate (default: 0.1)')
+    parser.add_argument('--lr_score', type=float, default=0.1, metavar='LR',
+                        help='learning rate score (default: 0.1)', required=False)
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
