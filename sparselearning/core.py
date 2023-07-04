@@ -282,7 +282,7 @@ class Masking(object):
         self.remove_type(nn.BatchNorm2d)
         print('Removing 1D batch norms...')
         self.remove_type(nn.BatchNorm1d)
-        self.init(mode=sparse_init, density=density)
+        
         if self.args.method == 'score_npb':
             for m in module.modules():
                 if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
@@ -297,6 +297,8 @@ class Masking(object):
                 self.optimizer = optim.SGD(params,lr=self.args.lr,momentum=self.args.momentum,weight_decay=self.args.l2, nesterov=True)
             elif self.args.optimizer == 'adam':
                 self.optimizer = optim.Adam(params,lr=self.args.lr,weight_decay=self.args.l2)
+
+        self.init(mode=sparse_init, density=density)
 
     def remove_weight(self, name):
         if name in self.masks:
