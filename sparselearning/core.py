@@ -291,14 +291,6 @@ class Masking(object):
                     nn.init.kaiming_normal_(m.score)
                     setattr(m, 'forward', NPB_forward.__get__(m, m.__class__))
 
-            weights = [p for n, p in module.named_parameters() if 'score' not in n]
-            scores = [m.score for m in module.modules() if hasattr(m, 'score')]
-            params = [{'params': weights, 'lr': self.args.lr}, {'params': scores, 'lr': self.args.lr_score}]
-            if self.args.optimizer == 'sgd':
-                self.optimizer = optim.SGD(params,lr=self.args.lr,momentum=self.args.momentum,weight_decay=self.args.l2, nesterov=True)
-            elif self.args.optimizer == 'adam':
-                self.optimizer = optim.Adam(params,lr=self.args.lr,weight_decay=self.args.l2)
-
         self.init(mode=sparse_init, density=density)
 
     def remove_weight(self, name):

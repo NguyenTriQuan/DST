@@ -302,6 +302,21 @@ def main():
         # mask.truncate_weights()
         # _, _ = mask.fired_masks_update()
         # mask.print_nonzero_counts()
+        if args.method == 'score_npb':
+            weights = [p for n, p in model.named_parameters() if 'score' not in n]
+            scores = [m.score for m in model.modules() if hasattr(m, 'score')]
+            params = [{'params': weights, 'lr': args.lr}, {'params': scores, 'lr': args.lr_score}]
+
+            if args.optimizer == 'sgd':
+                optimizer = optim.SGD(params,lr=args.lr,momentum=args.momentum,weight_decay=args.l2, nesterov=True)
+            elif args.optimizer == 'adam':
+                optimizer = optim.Adam(params,lr=args.lr,weight_decay=args.l2)
+            else:
+                print('Unknown optimizer: {0}'.format(args.optimizer))
+                raise Exception('Unknown optimizer.')
+            lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[int(args.epochs / 2) * args.multiplier, int(args.epochs * 3 / 4) * args.multiplier], last_epoch=-1)
+            mask.optimizer = optimizer
+
 
         for epoch in range(1, args.epochs*args.multiplier + 1):
             t0 = time.time()
