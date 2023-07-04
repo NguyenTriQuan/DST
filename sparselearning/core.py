@@ -436,7 +436,7 @@ class Masking(object):
         for m in self.modules[-1].modules():
             if not hasattr(m, 'score'): continue
             mask = m.mask
-
+            print(mask.sum())
             if len(mask.shape) == 4:
                 dim_in = (0,2,3)
                 dim_out = (1,2,3)
