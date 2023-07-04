@@ -225,6 +225,8 @@ class Masking(object):
                     if hasattr(m, 'score'):
                         if n in name:
                             m.num_zeros = math.ceil((1-density_dict[name])*m.weight.numel())
+                            m.mask = TopK.apply(m.score.abs(), m.num_zeros).detach()
+                            m.fired_mask = m.mask.clone()
             print(f"Overall sparsity {total_nonzero / total_params}")
 
         self.apply_mask()
@@ -256,7 +258,7 @@ class Masking(object):
         if self.prune_every_k_steps is not None:
             if self.steps % self.prune_every_k_steps == 0:
                 if self.args.method == 'score_npb':
-                    pass
+                    self.fired_masks_update()
                 else:
                     self.truncate_weights()
                     _, _ = self.fired_masks_update()
@@ -687,16 +689,26 @@ class Masking(object):
         ntotal_fired_weights = 0.0
         ntotal_weights = 0.0
         layer_fired_weights = {}
-        for module in self.modules:
-            for name, weight in module.named_parameters():
-                if name not in self.masks: continue
-                self.fired_masks[name] = self.masks[name].data.byte() | self.fired_masks[name].data.byte()
-                ntotal_fired_weights += float(self.fired_masks[name].sum().item())
-                ntotal_weights += float(self.fired_masks[name].numel())
-                layer_fired_weights[name] = float(self.fired_masks[name].sum().item())/float(self.fired_masks[name].numel())
-                print('Layerwise percentage of the fired weights of', name, 'is:', layer_fired_weights[name])
-        total_fired_weights = ntotal_fired_weights/ntotal_weights
-        print('The percentage of the total fired weights is:', total_fired_weights)
+        if self.args.method == 'score_npb':
+            for module in self.modules:
+                for m in module.modules():
+                    if not hasattr(m, 'score'): continue
+                    m.fired_mask = m.mask.data.byte() | m.fired_mask.data.byte()
+                    ntotal_fired_weights += float(m.fired_mask.sum().item())
+                    ntotal_weights += float(m.fired_mask.numel())
+            total_fired_weights = ntotal_fired_weights/ntotal_weights
+            print('The percentage of the total fired weights is:', total_fired_weights)
+        else:
+            for module in self.modules:
+                for name, weight in module.named_parameters():
+                    if name not in self.masks: continue
+                    self.fired_masks[name] = self.masks[name].data.byte() | self.fired_masks[name].data.byte()
+                    ntotal_fired_weights += float(self.fired_masks[name].sum().item())
+                    ntotal_weights += float(self.fired_masks[name].numel())
+                    layer_fired_weights[name] = float(self.fired_masks[name].sum().item())/float(self.fired_masks[name].numel())
+                    print('Layerwise percentage of the fired weights of', name, 'is:', layer_fired_weights[name])
+            total_fired_weights = ntotal_fired_weights/ntotal_weights
+            print('The percentage of the total fired weights is:', total_fired_weights)
         if self.args.wandb:
             wandb.log({'fired weights': total_fired_weights})
         return layer_fired_weights, total_fired_weights
