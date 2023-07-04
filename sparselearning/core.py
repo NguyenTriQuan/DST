@@ -224,7 +224,7 @@ class Masking(object):
                 total_nonzero += density_dict[name] * mask.numel()
                 for n, m in self.modules[-1].named_modules():
                     if n in name:
-                        m.num_zeros = math.ceil(self.name2zeros[name])
+                        m.num_zeros = math.ceil((1-density_dict[name])*m.weight.numel())
             print(f"Overall sparsity {total_nonzero / total_params}")
 
         self.apply_mask()
@@ -336,6 +336,7 @@ class Masking(object):
                     self.remove_weight(name)
 
     def apply_mask(self):
+        if self.args.method == 'score_npb': return
         for module in self.modules:
             for name, tensor in module.named_parameters():
                 if name in self.masks:
