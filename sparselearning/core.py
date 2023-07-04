@@ -68,7 +68,7 @@ class TopK(torch.autograd.Function):
 def NPB_forward(self, inputs):
     if self.training:
         self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-
+    print(self.num_zeros)
     if isinstance(self, nn.Linear):
         return F.linear(inputs, self.mask * self.weight, self.bias)
     elif isinstance(self, nn.Conv2d):
@@ -436,7 +436,6 @@ class Masking(object):
         for m in self.modules[-1].modules():
             if not hasattr(m, 'score'): continue
             mask = m.mask
-            print(mask.sum())
             if len(mask.shape) == 4:
                 dim_in = (0,2,3)
                 dim_out = (1,2,3)
