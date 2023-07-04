@@ -88,7 +88,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         output = model(data)
 
         loss = F.nll_loss(output, target)
-        if args.method == 'score_npb':
+        if args.method == 'score_npb' and args.lamb > 0:
             loss -= args.lamb * mask.score_NPB_reg()
 
         train_loss += loss.item()
