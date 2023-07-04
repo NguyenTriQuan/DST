@@ -223,8 +223,9 @@ class Masking(object):
                 self.name2zeros[name] = mask.numel() - self.name2nonzeros[name]
                 total_nonzero += density_dict[name] * mask.numel()
                 for n, m in self.modules[-1].named_modules():
-                    if n in name:
-                        m.num_zeros = math.ceil((1-density_dict[name])*m.weight.numel())
+                    if hasattr(m, 'score'):
+                        if n in name:
+                            m.num_zeros = math.ceil((1-density_dict[name])*m.weight.numel())
             print(f"Overall sparsity {total_nonzero / total_params}")
 
         self.apply_mask()
