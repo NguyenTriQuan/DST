@@ -88,8 +88,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         output = model(data)
 
         loss = F.nll_loss(output, target)
-        if args.method == 'npb':
-            loss -= args.lamb * mask.NPB_reg()
+        if args.method == 'score_npb':
+            loss -= args.lamb * mask.score_NPB_reg()
 
         train_loss += loss.item()
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability

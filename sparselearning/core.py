@@ -64,6 +64,15 @@ class TopK(torch.autograd.Function):
     def backward(ctx, g):
         # send the gradient g straight-through on the backward pass.
         return g, None
+    
+def NPB_forward(self, inputs):
+    if self.training:
+        self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+
+    if isinstance(self, nn.Linear):
+        return F.linear(inputs, self.mask * self.weight, self.bias)
+    elif isinstance(self, nn.Conv2d):
+        return self._conv_forward(inputs, self.weight * self.mask, self.bias)
 
 class Masking(object):
     def __init__(self, optimizer, death_rate=0.3, growth_death_ratio=1.0, death_rate_decay=None, death_mode='magnitude', growth_mode='momentum', redistribution_mode='momentum', threshold=0.001, args=None):
@@ -81,6 +90,7 @@ class Masking(object):
         self.death_rate_decay = death_rate_decay
 
         self.masks = {}
+        self.scores = {}
         self.modules = []
         self.names = []
         self.optimizer = optimizer
@@ -208,8 +218,13 @@ class Masking(object):
                     f"layer: {name}, shape: {mask.shape}, density: {density_dict[name]}"
                 )
                 self.masks[name][:] = (torch.rand(mask.shape) < density_dict[name]).float().data.cuda()
-
+                mask = self.masks[name]
+                self.name2nonzeros[name] = mask.sum().item()
+                self.name2zeros[name] = mask.numel() - self.name2nonzeros[name]
                 total_nonzero += density_dict[name] * mask.numel()
+                for n, m in module.named_modules():
+                    if n in name:
+                        m.num_zeros = self.name2zeros[name]
             print(f"Overall sparsity {total_nonzero / total_params}")
 
         self.apply_mask()
@@ -230,16 +245,22 @@ class Masking(object):
 
     def step(self):
         self.optimizer.step()
-        self.apply_mask()
+        if self.args.method == 'score_npb':
+            pass
+        else:
+            self.apply_mask()
         self.death_rate_decay.step()
         self.death_rate = self.death_rate_decay.get_dr()
         self.steps += 1
 
         if self.prune_every_k_steps is not None:
             if self.steps % self.prune_every_k_steps == 0:
-                self.truncate_weights()
-                _, _ = self.fired_masks_update()
-                self.print_nonzero_counts()
+                if self.args.method == 'score_npb':
+                    pass
+                else:
+                    self.truncate_weights()
+                    _, _ = self.fired_masks_update()
+                    self.print_nonzero_counts()
 
 
     def add_module(self, module, density, sparse_init='ER'):
@@ -247,6 +268,12 @@ class Masking(object):
         for name, tensor in module.named_parameters():
             self.names.append(name)
             self.masks[name] = torch.zeros_like(tensor, dtype=torch.float32, requires_grad=False).cuda()
+            # self.scores[name] = nn.Parameter(torch.empty_like(tensor), requires_grad=True).cuda() 
+            # nn.init.kaiming_normal_(self.scores[name])
+            # for n, m in module.named_modules():
+            #     if n in name:
+            #         m.name = name
+
 
         print('Removing biases...')
         self.remove_weight_partial_name('bias')
@@ -255,8 +282,20 @@ class Masking(object):
         print('Removing 1D batch norms...')
         self.remove_type(nn.BatchNorm1d)
         self.init(mode=sparse_init, density=density)
-        # if 'npb' in self.args.method:
-        #     get_related_layers(module, (3,32,32))
+        if self.args.method == 'score_npb':
+            for m in module.modules():
+                if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
+                    m.score = nn.Parameter(torch.empty_like(tensor), requires_grad=True).cuda()
+                    nn.init.kaiming_normal_(m.score)
+                    setattr(m, 'forward', NPB_forward.__get__(m, m.__class__))
+
+            weights = [p for n, p in module.named_parameters() if 'score' not in n]
+            scores = [m.score for m in module.modules() if hasattr(m, 'score')]
+            params = [{'params': weights, 'lr': self.args.lr}, {'params': scores, 'lr': self.args.lr_score}]
+            if self.args.optimizer == 'sgd':
+                self.optimizer = optim.SGD(params,lr=self.args.lr,momentum=self.args.momentum,weight_decay=self.args.l2, nesterov=True)
+            elif self.args.optimizer == 'adam':
+                self.optimizer = optim.Adam(params,lr=self.args.lr,weight_decay=self.args.l2)
 
     def remove_weight(self, name):
         if name in self.masks:
@@ -390,7 +429,40 @@ class Masking(object):
     '''
                     NPB
     '''
+    def score_NPB_reg(self):
+        eff_nodes = 0
+        P_out = torch.zeros(3).float().cuda()
+        eff_nodes_out = torch.ones(3).float().cuda()
+        for m in self.modules[-1].modules():
+            if not hasattr(m, 'score'): continue
+            mask = m.mask
 
+            if len(mask.shape) == 4:
+                dim_in = (0,2,3)
+                dim_out = (1,2,3)
+                view_in = (1,-1,1,1)
+            else:
+                dim_in = (0)
+                dim_out = (1)
+                view_in = (1,-1)
+
+            if P_out.shape[0] != mask.shape[1]:
+                s = math.ceil(math.sqrt(mask.shape[1]/P_out.shape[0]))
+                P_out = P_out.view(P_out.shape[0], 1, 1).expand(P_out.shape[0], s, s).contiguous().view(-1)
+                eff_nodes_out = eff_nodes_out.view(eff_nodes_out.shape[0], 1, 1).expand(eff_nodes_out.shape[0], s, s).contiguous().view(-1)
+
+            P_out = torch.logsumexp(torch.log(mask) + P_out.view(view_in), dim=dim_out)
+            eff_nodes_in = torch.clamp(torch.sum(mask, dim=dim_in) * eff_nodes_out, max=1)
+            eff_nodes += eff_nodes_in.sum()
+            eff_nodes_out = torch.clamp(torch.sum(mask * eff_nodes_out.view(view_in), dim=dim_out), max=1)
+        eff_nodes += eff_nodes_out.sum()
+        P_out = torch.logsumexp(P_out, dim=0)
+        if self.steps % self.prune_every_k_steps == 0:
+            print(f'eff nodes: {eff_nodes}, eff paths: {P_out}')
+            if self.args.wandb:
+                wandb.log({'eff nodes': eff_nodes, 'eff paths': P_out})
+        return self.args.alpha * eff_nodes.log() + (1-self.args.alpha) * P_out
+    
     def NPB_reg(self):
         for module in self.modules:
             eff_nodes = 0
@@ -415,13 +487,14 @@ class Masking(object):
                     view_in = (1,-1)
 
                 if P_out.shape[0] != mask.shape[1]:
-                    P_out = P_out.view(P_out.shape[0], 1).expand(P_out.shape[0], mask.shape[1]//P_out.shape[0]).reshape(mask.shape[1])
-                    eff_nodes_out = eff_nodes_out.view(eff_nodes_out.shape[0], 1).expand(eff_nodes_out.shape[0], mask.shape[1]//eff_nodes_out.shape[0]).reshape(mask.shape[1])
+                    s = math.ceil(math.sqrt(mask.shape[1]/P_out.shape[0]))
+                    P_out = P_out.view(P_out.shape[0], 1, 1).expand(P_out.shape[0], s, s).contiguous().view(-1)
+                    eff_nodes_out = eff_nodes_out.view(eff_nodes_out.shape[0], 1, 1).expand(eff_nodes_out.shape[0], s, s).contiguous().view(-1)
 
-                P_out = torch.logsumexp(torch.log(mask+1e-9) + P_out.view(view_in), dim=dim_out)
+                P_out = torch.logsumexp(torch.log(mask) + P_out.view(view_in), dim=dim_out)
                 eff_nodes_in = torch.clamp(torch.sum(mask, dim=dim_in) * eff_nodes_out, max=1)
                 eff_nodes += eff_nodes_in.sum()
-                eff_nodes_out = torch.clamp(torch.sum(mask * eff_nodes_in.view(view_in), dim=dim_out), max=1)
+                eff_nodes_out = torch.clamp(torch.sum(mask * eff_nodes_out.view(view_in), dim=dim_out), max=1)
             eff_nodes += eff_nodes_out.sum()
             P_out = torch.logsumexp(P_out, dim=0)
             if self.steps % self.prune_every_k_steps == 0:
