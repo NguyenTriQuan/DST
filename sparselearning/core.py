@@ -285,7 +285,7 @@ class Masking(object):
         if self.args.method == 'score_npb':
             for m in module.modules():
                 if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
-                    m.score = nn.Parameter(torch.empty_like(tensor), requires_grad=True).cuda()
+                    m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
                     nn.init.kaiming_normal_(m.score)
                     setattr(m, 'forward', NPB_forward.__get__(m, m.__class__))
 
