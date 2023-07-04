@@ -299,9 +299,9 @@ def main():
 
         best_acc = 0.0
 
-        mask.truncate_weights()
-        _, _ = mask.fired_masks_update()
-        mask.print_nonzero_counts()
+        # mask.truncate_weights()
+        # _, _ = mask.fired_masks_update()
+        # mask.print_nonzero_counts()
 
         for epoch in range(1, args.epochs*args.multiplier + 1):
             t0 = time.time()
