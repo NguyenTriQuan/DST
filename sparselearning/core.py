@@ -222,7 +222,7 @@ class Masking(object):
                 self.name2nonzeros[name] = mask.sum().item()
                 self.name2zeros[name] = mask.numel() - self.name2nonzeros[name]
                 total_nonzero += density_dict[name] * mask.numel()
-                for n, m in module.named_modules():
+                for n, m in self.modules[-1].named_modules():
                     if n in name:
                         m.num_zeros = self.name2zeros[name]
             print(f"Overall sparsity {total_nonzero / total_params}")
