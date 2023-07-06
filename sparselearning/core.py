@@ -442,10 +442,10 @@ class Masking(object):
                 dim_out = (1)
                 view_in = (1,-1)
 
-            if P_out.shape[0] != mask.shape[1]:
-                s = math.ceil(math.sqrt(mask.shape[1]/P_out.shape[0]))
-                P_out = P_out.view(P_out.shape[0], 1, 1).expand(P_out.shape[0], s, s).contiguous().view(-1)
-                eff_nodes_out = eff_nodes_out.view(eff_nodes_out.shape[0], 1, 1).expand(eff_nodes_out.shape[0], s, s).contiguous().view(-1)
+            # if P_out.shape[0] != mask.shape[1]:
+            #     s = math.ceil(math.sqrt(mask.shape[1]/P_out.shape[0]))
+            #     P_out = P_out.view(P_out.shape[0], 1, 1).expand(P_out.shape[0], s, s).contiguous().view(-1)
+            #     eff_nodes_out = eff_nodes_out.view(eff_nodes_out.shape[0], 1, 1).expand(eff_nodes_out.shape[0], s, s).contiguous().view(-1)
 
             P_out = torch.logsumexp(torch.log(mask+1e-12) + P_out.view(view_in), dim=dim_out)
             eff_nodes_in = torch.clamp(torch.sum(mask, dim=dim_in) * eff_nodes_out, max=1)
