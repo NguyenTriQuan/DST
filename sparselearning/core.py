@@ -111,7 +111,7 @@ def NPB_linear_forward(self, x):
         # return nodes_out, paths_out
 
         x_max = torch.max(x)
-        print(x_max, self.mask.shape)
+        print(x_max, self.mask.shape, (x==math.nan).sum())
         return torch.log(F.linear((x-x_max).exp(), self.mask, None)+1e-12) + x_max
     else:
         if self.training:
@@ -127,7 +127,7 @@ def NPB_conv_forward(self, x):
         # nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1,1,1)), dim=(1,2,3)), max=1)
         # return nodes_out, paths_out
         x_max = torch.max(x)
-        print(x_max, self.mask.shape)
+        print(x_max, self.mask.shape, (x==math.nan).sum())
         return torch.log(self._conv_forward((x-x_max).exp(), self.mask, None)+1e-12) + x_max
     else:
         if self.training:
@@ -143,7 +143,7 @@ def NPB_dummy_forward(self, x):
 def NPB_stable_forward(self, x):
     if self.measure:
         x_max = torch.max(x)
-        print(x_max)
+        print(x_max, (x==math.nan).sum())
         return torch.log(self.original_forward((x-x_max).exp())+1e-12) + x_max
     else:
         return self.original_forward(x)
@@ -155,6 +155,7 @@ def NPB_residual_forward(self, x, y):
         # nodes_out = torch.maximum(nodes_in_x, nodes_in_y)
         # paths_out = torch.logsumexp(torch.stack([paths_in_x, paths_in_y], dim=0), dim=0)
         # return nodes_out, paths_out
+        print((x==math.nan).sum(), (y==math.nan).sum())
         return torch.logsumexp(torch.stack([x, y], dim=0), dim=0)
     else:
         return self.original_forward(x, y)
