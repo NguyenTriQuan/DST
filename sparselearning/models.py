@@ -302,7 +302,8 @@ class VGG16(nn.Module):
         self.densities = []
         self.save_features = save_features
         self.bench = None if not bench_model else SparseSpeedupBench()
-
+        self.log_softmax = nn.LogSoftmax(dim=1)
+        self.flatten = nn.Flatten()
         if config == 'C' or config == 'D':
             self.classifier = nn.Sequential(
                 nn.Linear((512 if config == 'D' else 2048), 512),  # 512 * 7 * 7 in the original VGG
@@ -356,9 +357,9 @@ class VGG16(nn.Module):
                     self.feats.append(x.clone().detach())
                     self.densities.append((x.data != 0.0).sum().item()/x.numel())
 
-        x = x.view(x.size(0), -1)
+        x = self.flatten(x)
         x = self.classifier(x)
-        x = F.log_softmax(x, dim=1)
+        x = self.log_softmax(x)
         return x
 
 
@@ -388,6 +389,9 @@ class WideResNet(nn.Module):
         # global average pooling and classifier
         self.bn1 = nn.BatchNorm2d(nChannels[3])
         self.relu = nn.ReLU(inplace=True)
+        self.avg_pool2d = nn.AvgPool2d(8)
+        self.log_softmax = nn.LogSoftmax(dim=1)
+        self.flatten = nn.Flatten()
         self.fc = nn.Linear(nChannels[3], num_classes)
         self.nChannels = nChannels[3]
         self.feats = []
@@ -430,10 +434,10 @@ class WideResNet(nn.Module):
             del self.block3.densities[:]
 
         out = self.relu(self.bn1(out))
-        out = F.avg_pool2d(out, 8)
-        out = out.view(-1, self.nChannels)
+        out = self.avg_pool2d(out)
+        out = self.flatten(out)
         out = self.fc(out)
-        return F.log_softmax(out, dim=1)
+        return self.log_softmax(out)
 
 class Residual(nn.Module):
     """Wide Residual Network basic block
@@ -464,6 +468,7 @@ class BasicBlock(nn.Module):
         self.conv2 = nn.Conv2d(out_planes, out_planes, kernel_size=3, stride=1,
                                padding=1, bias=False)
         self.res = Residual()
+        self.dropout = nn.Dropout(self.droprate)
         self.droprate = dropRate
         self.equalInOut = (in_planes == out_planes)
         self.convShortcut = (not self.equalInOut) and nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride,
@@ -496,7 +501,7 @@ class BasicBlock(nn.Module):
             self.feats.append(out.clone().detach())
             self.densities.append((out.data != 0.0).sum().item()/out.numel())
         if self.droprate > 0:
-            out = F.dropout(out, p=self.droprate, training=self.training)
+            out = self.dropout(out)
         if self.bench:
             out = self.bench.forward(self.conv2, out, str(self.in_planes) + '.conv2')
         else:
@@ -577,6 +582,7 @@ class Bottleneck(nn.Module):
         self.conv3 = nn.Conv2d(planes, self.expansion*planes, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(self.expansion*planes)
         self.res = Residual()
+        self.relu = nn.ReLU()
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
@@ -586,12 +592,12 @@ class Bottleneck(nn.Module):
             )
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = F.relu(self.bn2(self.conv2(out)))
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.relu(self.bn2(self.conv2(out)))
         out = self.bn3(self.conv3(out))
         # out += self.shortcut(x)
         out = self.res(out, self.shortcut(x))
-        out = F.relu(out)
+        out = self.relu(out)
         return out
 
 
@@ -607,6 +613,10 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
         self.classifier = nn.Linear(512*block.expansion, num_classes, bias=False)
+        self.relu = nn.ReLU()
+        self.avg_pool2d = nn.AvgPool2d(4)
+        self.log_softmax = nn.LogSoftmax(dim=1)
+        self.flatten = nn.Flatten()
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1]*(num_blocks-1)
@@ -617,15 +627,15 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.relu(self.bn1(self.conv1(x)))
         out = self.layer1(out)
         out = self.layer2(out)
         out = self.layer3(out)
         out = self.layer4(out)
-        out = F.avg_pool2d(out, 4)
-        out = out.view(out.size(0), -1)
+        out = self.avg_pool2d(out)
+        out = self.flatten(out)
         out = self.classifier(out)
-        out = F.log_softmax(out, dim=1)
+        out = self.log_softmax(out)
         return out
 
 
