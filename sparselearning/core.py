@@ -72,8 +72,8 @@ def measure_node_path(model):
     model.apply(lambda m: setattr(m, "measure", True))
     # x = torch.ones((1, 3, 32, 32)).float().cuda()
     x = (torch.ones(3).float().cuda(), torch.zeros(3).float().cuda())
-    y = model(x)
-    eff_paths = torch.logsumexp(y, dim=0)
+    nodes_out, paths_out = model(x)
+    eff_paths = torch.logsumexp(paths_out, dim=0)
     eff_nodes = 0
     for m in model.modules():
         m.measure = False
