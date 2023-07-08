@@ -128,7 +128,7 @@ def NPB_residual_forward(self, x, y):
         paths_out = torch.logsumexp(torch.stack([paths_in_x, paths_in_y], dim=0), dim=0)
         return nodes_out, paths_out
     else:
-        return self.original_forward(x)
+        return self.original_forward(x, y)
 
 def NPB_register(model):
     model.apply(lambda m: setattr(m, "measure", False))
