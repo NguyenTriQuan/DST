@@ -8,6 +8,7 @@ import copy
 import numpy as np
 import math
 import wandb
+from models import Residual
 
 def add_sparse_args(parser):
     parser.add_argument('--sparse', action='store_true', help='Enable sparse mode. Default: True.')
@@ -65,14 +66,90 @@ class TopK(torch.autograd.Function):
         # send the gradient g straight-through on the backward pass.
         return g, None
     
-def NPB_forward(self, inputs):
-    if self.training:
-        self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-    if isinstance(self, nn.Linear):
-        return F.linear(inputs, self.mask * self.weight, self.bias)
-    elif isinstance(self, nn.Conv2d):
-        return self._conv_forward(inputs, self.weight * self.mask, self.bias)
+# NPB core #
 
+def measure_node_path(model):
+    model.apply(lambda m: setattr(m, "measure", True))
+    # x = torch.ones((1, 3, 32, 32)).float().cuda()
+    x = (torch.ones(3).float().cuda(), torch.zeros(3).float().cuda())
+    y = model(x)
+    eff_paths = torch.logsumexp(y, dim=0)
+    eff_nodes = 0
+    for m in model.modules():
+        m.measure = False
+        if hasattr(m, 'score'):
+            eff_nodes += m.eff_nodes
+            m.eff_nodes = None
+    return eff_nodes, eff_paths
+
+def NPB_linear_forward(self, x):
+    if self.measure:
+        nodes_in, paths_in = x
+
+        if paths_in.shape[0] != self.mask.shape[1]:
+            s = math.ceil(math.sqrt(self.mask.shape[1]/paths_in.shape[0]))
+            paths_in = paths_in.view(paths_in.shape[0], 1, 1).expand(paths_in.shape[0], s, s).contiguous().view(-1)
+            nodes_in = nodes_in.view(nodes_in.shape[0], 1, 1).expand(nodes_in.shape[0], s, s).contiguous().view(-1)
+
+        paths_out = torch.logsumexp(torch.log(self.mask+1e-12) + paths_in.view((1,-1)), dim=(1))
+        nodes_in = torch.clamp(torch.sum(self.mask, dim=(0)) * nodes_in, max=1)
+        self.eff_nodes = nodes_in.sum()
+        nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1)), dim=(1)), max=1)
+        return nodes_out, paths_out
+    else:
+        if self.training:
+            self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        return F.linear(x, self.mask * self.weight, self.bias)
+    
+def NPB_conv_forward(self, x):
+    if self.measure:
+        nodes_in, paths_in = x
+        paths_out = torch.logsumexp(torch.log(self.mask+1e-12) + paths_in.view((1,-1,1,1)), dim=(1,2,3))
+        nodes_in = torch.clamp(torch.sum(self.mask, dim=(0,2,3)) * nodes_in, max=1)
+        self.eff_nodes = nodes_in.sum()
+        nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1,1,1)), dim=(1,2,3)), max=1)
+        return nodes_out, paths_out
+    else:
+        if self.training:
+            self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        return self._conv_forward(x, self.weight * self.mask, self.bias)
+    
+def NPB_dummy_forward(self, x):
+    if self.measure:
+        return x
+    else:
+        return self.original_forward(x)
+
+def NPB_residual_forward(self, x, y):
+    if self.measure:
+        nodes_in_x, paths_in_x = x
+        nodes_in_y, paths_in_y = y
+        nodes_out = torch.maximum(nodes_in_x, nodes_in_y)
+        paths_out = torch.logsumexp(torch.stack([paths_in_x, paths_in_y], dim=0), dim=0)
+        return nodes_out, paths_out
+    else:
+        return self.original_forward(x)
+
+def NPB_register(model):
+    model.apply(lambda m: setattr(m, "measure", False))
+    for m in model.modules():
+        if isinstance(m, nn.Linear):
+            m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
+            nn.init.kaiming_normal_(m.score)
+            setattr(m, 'original_forward', m.forward)
+            setattr(m, 'forward', NPB_linear_forward.__get__(m, m.__class__))
+        elif isinstance(m, nn.Conv2d):
+            m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
+            nn.init.kaiming_normal_(m.score)
+            setattr(m, 'original_forward', m.forward)
+            setattr(m, 'forward', NPB_conv_forward.__get__(m, m.__class__))
+        elif isinstance(m, Residual):
+            setattr(m, 'original_forward', m.forward)
+            setattr(m, 'forward', NPB_residual_forward.__get__(m, m.__class__))
+        else:
+            setattr(m, 'original_forward', m.forward)
+            setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
+            
 class Masking(object):
     def __init__(self, optimizer, death_rate=0.3, growth_death_ratio=1.0, death_rate_decay=None, death_mode='magnitude', growth_mode='momentum', redistribution_mode='momentum', threshold=0.001, args=None):
         growth_modes = ['random', 'momentum', 'momentum_neuron', 'gradient']
@@ -246,7 +323,7 @@ class Masking(object):
 
 
     def step(self):
-        self.optimizer.step()
+        # self.optimizer.step()
         if self.args.method == 'score_npb':
             pass
         else:
@@ -285,11 +362,7 @@ class Masking(object):
         self.remove_type(nn.BatchNorm1d)
         
         if self.args.method == 'score_npb':
-            for m in module.modules():
-                if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
-                    m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
-                    nn.init.kaiming_normal_(m.score)
-                    setattr(m, 'forward', NPB_forward.__get__(m, m.__class__))
+            NPB_register(module)
 
         self.init(mode=sparse_init, density=density)
 
@@ -442,10 +515,10 @@ class Masking(object):
                 dim_out = (1)
                 view_in = (1,-1)
 
-            # if P_out.shape[0] != mask.shape[1]:
-            #     s = math.ceil(math.sqrt(mask.shape[1]/P_out.shape[0]))
-            #     P_out = P_out.view(P_out.shape[0], 1, 1).expand(P_out.shape[0], s, s).contiguous().view(-1)
-            #     eff_nodes_out = eff_nodes_out.view(eff_nodes_out.shape[0], 1, 1).expand(eff_nodes_out.shape[0], s, s).contiguous().view(-1)
+            if P_out.shape[0] != mask.shape[1]:
+                s = math.ceil(math.sqrt(mask.shape[1]/P_out.shape[0]))
+                P_out = P_out.view(P_out.shape[0], 1, 1).expand(P_out.shape[0], s, s).contiguous().view(-1)
+                eff_nodes_out = eff_nodes_out.view(eff_nodes_out.shape[0], 1, 1).expand(eff_nodes_out.shape[0], s, s).contiguous().view(-1)
 
             P_out = torch.logsumexp(torch.log(mask+1e-12) + P_out.view(view_in), dim=dim_out)
             eff_nodes_in = torch.clamp(torch.sum(mask, dim=dim_in) * eff_nodes_out, max=1)

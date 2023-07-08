@@ -435,6 +435,17 @@ class WideResNet(nn.Module):
         out = self.fc(out)
         return F.log_softmax(out, dim=1)
 
+class Residual(nn.Module):
+    """Wide Residual Network basic block
+
+    For more info, see the paper: Wide Residual Networks by Sergey Zagoruyko, Nikos Komodakis
+    https://arxiv.org/abs/1605.07146
+    """
+    def __init__(self):
+        super(Residual, self).__init__()
+    
+    def forward(self, x, y):
+        return x + y
 
 class BasicBlock(nn.Module):
     """Wide Residual Network basic block
@@ -452,6 +463,7 @@ class BasicBlock(nn.Module):
         self.relu2 = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv2d(out_planes, out_planes, kernel_size=3, stride=1,
                                padding=1, bias=False)
+        self.res = Residual()
         self.droprate = dropRate
         self.equalInOut = (in_planes == out_planes)
         self.convShortcut = (not self.equalInOut) and nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride,
@@ -490,7 +502,8 @@ class BasicBlock(nn.Module):
         else:
             out = self.conv2(out)
 
-        return torch.add(x if self.equalInOut else self.convShortcut(x), out)
+        return self.res(out, x if self.equalInOut else self.convShortcut(x))
+        # return torch.add(x if self.equalInOut else self.convShortcut(x), out)
 
 class NetworkBlock(nn.Module):
     """Wide Residual Network network block which holds basic blocks.
@@ -535,7 +548,7 @@ class BasicBlock(nn.Module):
         self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
-
+        self.res = Residual()
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
@@ -546,7 +559,8 @@ class BasicBlock(nn.Module):
     def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
         out = self.bn2(self.conv2(out))
-        out += self.shortcut(x)
+        out = self.res(out, self.shortcut(x))
+        # out += self.shortcut(x)
         out = F.relu(out)
         return out
 
@@ -562,6 +576,7 @@ class Bottleneck(nn.Module):
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, self.expansion*planes, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(self.expansion*planes)
+        self.res = Residual()
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
@@ -574,7 +589,8 @@ class Bottleneck(nn.Module):
         out = F.relu(self.bn1(self.conv1(x)))
         out = F.relu(self.bn2(self.conv2(out)))
         out = self.bn3(self.conv3(out))
-        out += self.shortcut(x)
+        # out += self.shortcut(x)
+        out = self.res(out, self.shortcut(x))
         out = F.relu(out)
         return out
 

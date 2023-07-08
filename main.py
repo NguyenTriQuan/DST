@@ -13,7 +13,7 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 
 import sparselearning
-from sparselearning.core import Masking, CosineDecay, LinearDecay
+from sparselearning.core import Masking, CosineDecay, LinearDecay, measure_node_path
 from sparselearning.models import AlexNet, VGG16, LeNet_300_100, LeNet_5_Caffe, WideResNet, MLP_CIFAR10, ResNet34, ResNet18
 from sparselearning.utils import get_mnist_dataloaders, get_cifar10_dataloaders, get_cifar100_dataloaders
 import torchvision
@@ -80,29 +80,42 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     train_loss = 0
     correct = 0
     n = 0
+    enabled = False
+    if args.amp:
+        enabled = True
+        torch.backends.cudnn.benchmark = True
+        scaler = torch.cuda.amp.GradScaler(enabled=True)
+        scaler2 = torch.cuda.amp.GradScaler(enabled=True)
     for batch_idx, (data, target) in enumerate(train_loader):
 
         data, target = data.to(device), target.to(device)
         if args.fp16: data = data.half()
         optimizer.zero_grad()
-        output = model(data)
-
-        loss = F.nll_loss(output, target)
-        if args.method == 'score_npb' and args.lamb > 0:
-            loss -= args.lamb * mask.score_NPB_reg()
+        with torch.cuda.amp.autocast(enabled=enabled):
+            output = model(data)
+            loss = F.nll_loss(output, target)
+            if args.method == 'score_npb' and args.lamb > 0:
+                eff_nodes, eff_paths = measure_node_path(model)
+                loss -= args.lamb * (args.alpha*eff_nodes + (1-args.alpha)*eff_paths)
 
         train_loss += loss.item()
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
         correct += pred.eq(target.view_as(pred)).sum().item()
         n += target.shape[0]
 
-        if args.fp16:
-            optimizer.backward(loss)
+        # if args.fp16:
+        #     optimizer.backward(loss)
+        # else:
+        #     loss.backward()
+        if args.amp:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
         else:
             loss.backward()
+            optimizer.step()
 
         if mask is not None: mask.step()
-        else: optimizer.step()
 
         if batch_idx % args.log_interval == 0:
             print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}% '.format(
@@ -113,11 +126,12 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     # training summary
     train_acc = 100. * correct / float(n)
     train_loss = train_loss/batch_idx
-    print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%)\n'.format(
+    eff_nodes, eff_paths = measure_node_path(model)
+    print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}, Eff paths: {} \n'.format(
         'Training summary' ,
-        train_loss, correct, n, train_acc))
+        train_loss, correct, n, train_acc, eff_nodes, eff_paths))
     if args.wandb:
-        wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch})
+        wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch, 'eff nodes': eff_nodes, 'eff paths': eff_paths})
 
 def evaluate(args, model, device, test_loader, is_test_set=False):
     model.eval()
@@ -174,6 +188,7 @@ def main():
     parser.add_argument('--decay_frequency', type=int, default=25000)
     parser.add_argument('--l1', type=float, default=0.0)
     parser.add_argument('--fp16', action='store_true', help='Run in fp16 mode.')
+    parser.add_argument('--amp', action='store_true', help='torch mix precision.')
     parser.add_argument('--valid_split', type=float, default=0.1)
     parser.add_argument('--resume', type=str)
     parser.add_argument('--start-epoch', type=int, default=1)
@@ -305,7 +320,7 @@ def main():
         if args.method == 'score_npb':
             weights = [p for n, p in model.named_parameters() if 'score' not in n]
             scores = [m.score for m in model.modules() if hasattr(m, 'score')]
-            params = [{'params': weights, 'lr': args.lr}, {'params': scores, 'lr': args.lr_score}]
+            params = [{'params': weights, 'lr': args.lr, 'weight_decay':args.l2}, {'params': scores, 'lr': args.lr_score, 'weight_decay':0}]
 
             if args.optimizer == 'sgd':
                 optimizer = optim.SGD(params,lr=args.lr,momentum=args.momentum,weight_decay=args.l2, nesterov=True)
