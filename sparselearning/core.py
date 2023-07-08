@@ -57,7 +57,7 @@ class TopK(torch.autograd.Function):
 
         # flat_out and out access the same memory.
         flat_out = out.flatten()
-        flat_out[idx[:k]] = 0
+        flat_out[idx[:k]] = 1e-12
         flat_out[idx[k:]] = 1
         return out
 
