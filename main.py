@@ -241,17 +241,19 @@ def main():
             train_loader, valid_loader, test_loader = get_mnist_dataloaders(args, validation_split=args.valid_split)
         elif args.data == 'cifar10':
             train_loader, valid_loader, test_loader = get_cifar10_dataloaders(args, args.valid_split, max_threads=args.max_threads)
+            c = 10
         elif args.data == 'cifar100':
             train_loader, valid_loader, test_loader = get_cifar100_dataloaders(args, args.valid_split, max_threads=args.max_threads)
+            c = 100
         if args.model not in models:
             print('You need to select an existing model via the --model argument. Available models include: ')
             for key in models:
                 print('\t{0}'.format(key))
             raise Exception('You need to select a model')
         elif args.model == 'ResNet18':
-            model = ResNet18(c=100).to(device)
+            model = ResNet18(c=c).to(device)
         elif args.model == 'ResNet34':
-            model = ResNet34(c=100).to(device)
+            model = ResNet34(c=c).to(device)
         else:
             cls, cls_args = models[args.model]
             model = cls(*(cls_args + [args.save_features, args.bench])).to(device)
