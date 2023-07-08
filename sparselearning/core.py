@@ -86,7 +86,6 @@ def measure_node_path(model):
     x = torch.ones((1, 3, 32, 32)).float().cuda()
     paths_out = model(x)
     eff_paths = torch.logsumexp(paths_out, dim=1)[0]
-    print(eff_paths, paths_out, paths_out.shape)
     eff_nodes = 0
     for m in model.modules():
         # if hasattr(m, 'score'):
@@ -111,7 +110,6 @@ def NPB_linear_forward(self, x):
         # return nodes_out, paths_out
 
         x_max = torch.max(x)
-        print(x_max, self.mask.shape, (x==math.nan).sum())
         return torch.log(F.linear((x-x_max).exp(), self.mask, None)+1e-12) + x_max
     else:
         if self.training:
@@ -127,7 +125,6 @@ def NPB_conv_forward(self, x):
         # nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1,1,1)), dim=(1,2,3)), max=1)
         # return nodes_out, paths_out
         x_max = torch.max(x)
-        print(x_max, self.mask.shape, (x==math.nan).sum())
         return torch.log(self._conv_forward((x-x_max).exp(), self.mask, None)+1e-12) + x_max
     else:
         if self.training:
@@ -143,7 +140,6 @@ def NPB_dummy_forward(self, x):
 def NPB_stable_forward(self, x):
     if self.measure:
         x_max = torch.max(x)
-        print(x_max, (x==math.nan).sum())
         return torch.log(self.original_forward((x-x_max).exp())+1e-12) + x_max
     else:
         return self.original_forward(x)
@@ -155,7 +151,6 @@ def NPB_residual_forward(self, x, y):
         # nodes_out = torch.maximum(nodes_in_x, nodes_in_y)
         # paths_out = torch.logsumexp(torch.stack([paths_in_x, paths_in_y], dim=0), dim=0)
         # return nodes_out, paths_out
-        print((x==math.nan).sum(), (y==math.nan).sum())
         return torch.logsumexp(torch.stack([x, y], dim=0), dim=0)
     else:
         return self.original_forward(x, y)
@@ -176,10 +171,10 @@ def NPB_register(model):
         elif isinstance(m, Residual):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_residual_forward.__get__(m, m.__class__))
-        elif isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.ReLU) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.Flatten) or isinstance(m, nn.Dropout):
+        elif isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.ReLU) or isinstance(m, nn.Flatten) or isinstance(m, nn.Dropout):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_stable_forward.__get__(m, m.__class__))
-        elif isinstance(m, nn.BatchNorm2d):
+        elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.LogSoftmax):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
 
