@@ -172,10 +172,10 @@ def NPB_register(model):
         elif isinstance(m, Residual):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_residual_forward.__get__(m, m.__class__))
-        elif isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.ReLU) or isinstance(m, nn.Flatten) or isinstance(m, nn.Dropout):
+        elif isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.Flatten) or isinstance(m, nn.Dropout):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_stable_forward.__get__(m, m.__class__))
-        elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.LogSoftmax):
+        elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.ReLU):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
 
