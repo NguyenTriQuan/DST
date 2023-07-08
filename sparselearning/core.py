@@ -126,7 +126,7 @@ def NPB_conv_forward(self, x):
         # nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1,1,1)), dim=(1,2,3)), max=1)
         # return nodes_out, paths_out
         x_max = torch.max(x)
-        print(x_max)
+        print(x_max, self.mask.shape)
         return torch.log(self._conv_forward((x-x_max).exp(), self.mask, None)+1e-12) + x_max
     else:
         if self.training:
