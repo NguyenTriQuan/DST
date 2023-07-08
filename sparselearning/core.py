@@ -83,7 +83,7 @@ def measure_node_path(model):
     # return eff_nodes, eff_paths
 
     model.apply(lambda m: setattr(m, "measure", True))
-    x = torch.ones((1, 3, 32, 32)).float().cuda()
+    x = torch.zeros((1, 3, 32, 32)).float().cuda()
     paths_out = model(x)
     eff_paths = torch.logsumexp(paths_out, dim=1)[0]
     print(eff_paths)
