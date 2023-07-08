@@ -8,7 +8,7 @@ import copy
 import numpy as np
 import math
 import wandb
-from models import Residual
+from sparselearning.models import Residual
 
 def add_sparse_args(parser):
     parser.add_argument('--sparse', action='store_true', help='Enable sparse mode. Default: True.')
