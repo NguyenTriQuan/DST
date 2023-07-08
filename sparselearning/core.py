@@ -69,33 +69,48 @@ class TopK(torch.autograd.Function):
 # NPB core #
 
 def measure_node_path(model):
+    # model.apply(lambda m: setattr(m, "measure", True))
+    # # x = torch.ones((1, 3, 32, 32)).float().cuda()
+    # x = (torch.ones(3).float().cuda(), torch.zeros(3).float().cuda())
+    # nodes_out, paths_out = model(x)
+    # eff_paths = torch.logsumexp(paths_out, dim=0)
+    # eff_nodes = 0
+    # for m in model.modules():
+    #     if hasattr(m, 'score'):
+    #         eff_nodes += m.eff_nodes
+    #         m.eff_nodes = None
+    #     m.measure = False
+    # return eff_nodes, eff_paths
+
     model.apply(lambda m: setattr(m, "measure", True))
-    # x = torch.ones((1, 3, 32, 32)).float().cuda()
-    x = (torch.ones(3).float().cuda(), torch.zeros(3).float().cuda())
-    nodes_out, paths_out = model(x)
+    x = torch.ones((1, 3, 32, 32)).float().cuda()
+    paths_out = model(x)
     eff_paths = torch.logsumexp(paths_out, dim=0)
     eff_nodes = 0
     for m in model.modules():
-        if hasattr(m, 'score'):
-            eff_nodes += m.eff_nodes
-            m.eff_nodes = None
+        # if hasattr(m, 'score'):
+        #     eff_nodes += m.eff_nodes
+        #     m.eff_nodes = None
         m.measure = False
     return eff_nodes, eff_paths
 
 def NPB_linear_forward(self, x):
     if self.measure:
-        nodes_in, paths_in = x
+        # nodes_in, paths_in = x
 
-        if paths_in.shape[0] != self.mask.shape[1]:
-            s = math.ceil(math.sqrt(self.mask.shape[1]/paths_in.shape[0]))
-            paths_in = paths_in.view(paths_in.shape[0], 1, 1).expand(paths_in.shape[0], s, s).contiguous().view(-1)
-            nodes_in = nodes_in.view(nodes_in.shape[0], 1, 1).expand(nodes_in.shape[0], s, s).contiguous().view(-1)
+        # if paths_in.shape[0] != self.mask.shape[1]:
+        #     s = math.ceil(math.sqrt(self.mask.shape[1]/paths_in.shape[0]))
+        #     paths_in = paths_in.view(paths_in.shape[0], 1, 1).expand(paths_in.shape[0], s, s).contiguous().view(-1)
+        #     nodes_in = nodes_in.view(nodes_in.shape[0], 1, 1).expand(nodes_in.shape[0], s, s).contiguous().view(-1)
 
-        paths_out = torch.logsumexp(torch.log(self.mask+1e-12) + paths_in.view((1,-1)), dim=(1))
-        nodes_in = torch.clamp(torch.sum(self.mask, dim=(0)) * nodes_in, max=1)
-        self.eff_nodes = nodes_in.sum()
-        nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1)), dim=(1)), max=1)
-        return nodes_out, paths_out
+        # paths_out = torch.logsumexp(torch.log(self.mask+1e-12) + paths_in.view((1,-1)), dim=(1))
+        # nodes_in = torch.clamp(torch.sum(self.mask, dim=(0)) * nodes_in, max=1)
+        # self.eff_nodes = nodes_in.sum()
+        # nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1)), dim=(1)), max=1)
+        # return nodes_out, paths_out
+
+        x_max = torch.max(x)
+        return F.linear((x-x_max).exp(), self.mask, None).log() + x_max
     else:
         if self.training:
             self.mask = TopK.apply(self.score.abs(), self.num_zeros)
@@ -103,12 +118,14 @@ def NPB_linear_forward(self, x):
     
 def NPB_conv_forward(self, x):
     if self.measure:
-        nodes_in, paths_in = x
-        paths_out = torch.logsumexp(torch.log(self.mask+1e-12) + paths_in.view((1,-1,1,1)), dim=(1,2,3))
-        nodes_in = torch.clamp(torch.sum(self.mask, dim=(0,2,3)) * nodes_in, max=1)
-        self.eff_nodes = nodes_in.sum()
-        nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1,1,1)), dim=(1,2,3)), max=1)
-        return nodes_out, paths_out
+        # nodes_in, paths_in = x
+        # paths_out = torch.logsumexp(torch.log(self.mask+1e-12) + paths_in.view((1,-1,1,1)), dim=(1,2,3))
+        # nodes_in = torch.clamp(torch.sum(self.mask, dim=(0,2,3)) * nodes_in, max=1)
+        # self.eff_nodes = nodes_in.sum()
+        # nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1,1,1)), dim=(1,2,3)), max=1)
+        # return nodes_out, paths_out
+        x_max = torch.max(x)
+        return self._conv_forward((x-x_max).exp(), self.mask, None).log() + x_max
     else:
         if self.training:
             self.mask = TopK.apply(self.score.abs(), self.num_zeros)
@@ -119,14 +136,22 @@ def NPB_dummy_forward(self, x):
         return x
     else:
         return self.original_forward(x)
+    
+def NPB_stable_forward(self, x):
+    if self.measure:
+        x_max = torch.max(x)
+        return self.original_forward((x-x_max).exp()).log() + x_max
+    else:
+        return self.original_forward(x)
 
 def NPB_residual_forward(self, x, y):
     if self.measure:
-        nodes_in_x, paths_in_x = x
-        nodes_in_y, paths_in_y = y
-        nodes_out = torch.maximum(nodes_in_x, nodes_in_y)
-        paths_out = torch.logsumexp(torch.stack([paths_in_x, paths_in_y], dim=0), dim=0)
-        return nodes_out, paths_out
+        # nodes_in_x, paths_in_x = x
+        # nodes_in_y, paths_in_y = y
+        # nodes_out = torch.maximum(nodes_in_x, nodes_in_y)
+        # paths_out = torch.logsumexp(torch.stack([paths_in_x, paths_in_y], dim=0), dim=0)
+        # return nodes_out, paths_out
+        return torch.logsumexp(torch.stack([x, y], dim=0), dim=0)
     else:
         return self.original_forward(x, y)
 
@@ -146,9 +171,13 @@ def NPB_register(model):
         elif isinstance(m, Residual):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_residual_forward.__get__(m, m.__class__))
-        elif isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.ReLU) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.Flatten) or isinstance(m, nn.Dropout):
+        elif isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.ReLU) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.Flatten) or isinstance(m, nn.Dropout):
+            setattr(m, 'original_forward', m.forward)
+            setattr(m, 'forward', NPB_stable_forward.__get__(m, m.__class__))
+        elif isinstance(m, nn.BatchNorm2d):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
+
             
 class Masking(object):
     def __init__(self, optimizer, death_rate=0.3, growth_death_ratio=1.0, death_rate_decay=None, death_mode='magnitude', growth_mode='momentum', redistribution_mode='momentum', threshold=0.001, args=None):

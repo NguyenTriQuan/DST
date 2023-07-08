@@ -85,7 +85,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         enabled = True
         torch.backends.cudnn.benchmark = True
         scaler = torch.cuda.amp.GradScaler(enabled=True)
-        scaler2 = torch.cuda.amp.GradScaler(enabled=True)
+
     for batch_idx, (data, target) in enumerate(train_loader):
 
         data, target = data.to(device), target.to(device)
