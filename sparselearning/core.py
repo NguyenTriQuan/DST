@@ -73,13 +73,14 @@ def measure_node_path(model):
     # x = torch.ones((1, 3, 32, 32)).float().cuda()
     x = (torch.ones(3).float().cuda(), torch.zeros(3).float().cuda())
     nodes_out, paths_out = model(x)
+    print(nodes_out, paths_out)
     eff_paths = torch.logsumexp(paths_out, dim=0)
     eff_nodes = 0
     for m in model.modules():
-        m.measure = False
         if hasattr(m, 'score'):
             eff_nodes += m.eff_nodes
             m.eff_nodes = None
+        m.measure = False
     return eff_nodes, eff_paths
 
 def NPB_linear_forward(self, x):
