@@ -95,6 +95,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
             output = model(data)
             loss = F.nll_loss(output, target)
             if args.method == 'score_npb' and args.lamb > 0:
+                scaler.scale(loss).backward(retain_graph=True)
                 eff_nodes, eff_paths = measure_node_path(model)
                 loss -= args.lamb * (args.alpha*eff_nodes + (1-args.alpha)*eff_paths)
 

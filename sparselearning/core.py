@@ -89,10 +89,14 @@ def measure_node_path(model):
     # print(eff_paths, paths_out)
     eff_nodes = 0
     for m in model.modules():
-        # if hasattr(m, 'score'):
-        #     eff_nodes += m.eff_nodes
-        #     m.eff_nodes = None
+        if hasattr(m, 'score'):
+            if len(m.weight.shape) == 4:
+                temp = torch.where(m.weight.grad.data != 0, 1, 0).sum((1,2,3))
+                eff_nodes += torch.where(temp != 0, 1, 0).sum()
+            # eff_nodes += m.eff_nodes
+            # m.eff_nodes = None
         m.measure = False
+    print(eff_nodes, eff_paths)
     return eff_nodes, eff_paths
 
 def NPB_linear_forward(self, x):
@@ -153,7 +157,7 @@ def NPB_residual_forward(self, x, y):
         # paths_out = torch.logsumexp(torch.stack([paths_in_x, paths_in_y], dim=0), dim=0)
         # return nodes_out, paths_out
         # print((x==-math.inf).sum(), (x==-math.inf).sum())
-        return torch.logsumexp(torch.stack([x, y], dim=0), dim=0, keepdim=True).squeeze(0)
+        return torch.logsumexp(torch.stack([x, y], dim=0), dim=0)
     else:
         return self.original_forward(x, y)
 
