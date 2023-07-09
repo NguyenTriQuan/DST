@@ -57,7 +57,7 @@ class TopK(torch.autograd.Function):
 
         # flat_out and out access the same memory.
         flat_out = out.flatten()
-        flat_out[idx[:k]] = 1e-12
+        flat_out[idx[:k]] = 0
         flat_out[idx[k:]] = 1
         return out
 
@@ -152,7 +152,7 @@ def NPB_residual_forward(self, x, y):
         # nodes_out = torch.maximum(nodes_in_x, nodes_in_y)
         # paths_out = torch.logsumexp(torch.stack([paths_in_x, paths_in_y], dim=0), dim=0)
         # return nodes_out, paths_out
-        return torch.logsumexp(torch.stack([x, y], dim=0), dim=0)
+        return torch.logsumexp(torch.stack([x, y], dim=0), dim=0, keepdim=True).squeeze(0)
     else:
         return self.original_forward(x, y)
 
