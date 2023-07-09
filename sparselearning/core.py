@@ -111,7 +111,7 @@ def NPB_linear_forward(self, x):
         # return nodes_out, paths_out
 
         x_max = torch.max(x)
-        return torch.log(F.linear((x-x_max).exp(), self.mask, None)+1e-12) + x_max
+        return torch.log(F.linear((x-x_max).exp(), self.mask, None)+1e-6) + x_max
     else:
         if self.training:
             self.mask = TopK.apply(self.score.abs(), self.num_zeros)
@@ -126,7 +126,7 @@ def NPB_conv_forward(self, x):
         # nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1,1,1)), dim=(1,2,3)), max=1)
         # return nodes_out, paths_out
         x_max = torch.max(x)
-        return torch.log(self._conv_forward((x-x_max).exp(), self.mask, None)+1e-12) + x_max
+        return torch.log(self._conv_forward((x-x_max).exp(), self.mask, None)+1e-6) + x_max
     else:
         if self.training:
             self.mask = TopK.apply(self.score.abs(), self.num_zeros)
@@ -141,7 +141,7 @@ def NPB_dummy_forward(self, x):
 def NPB_stable_forward(self, x):
     if self.measure:
         x_max = torch.max(x)
-        return torch.log(self.original_forward((x-x_max).exp())+1e-12) + x_max
+        return torch.log(self.original_forward((x-x_max).exp())+1e-6) + x_max
     else:
         return self.original_forward(x)
 
