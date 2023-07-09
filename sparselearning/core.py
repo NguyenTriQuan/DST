@@ -100,12 +100,12 @@ def measure_node_path(model):
     #         m.eff_nodes = None
     #     m.measure = False
     # return eff_nodes, eff_paths
-    for m in model.modules():
-        m.measure = True
-        if hasattr(m, 'score'):
-            m.dummy.grad = None
+    # for m in model.modules():
+    #     m.measure = True
+    #     if hasattr(m, 'score'):
+    #         m.dummy.grad = None
             # print(m.dummy.shape, m.dummy.grad)
-    # model.apply(lambda m: setattr(m, "measure", True))
+    model.apply(lambda m: setattr(m, "measure", True))
     x = torch.zeros((1, 3, 32, 32)).float().cuda()
     eff_paths = model(x)
     eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
@@ -127,8 +127,8 @@ def measure_node_path(model):
             # eff_nodes += m.eff_nodes
             # m.eff_nodes = None
         m.measure = False
-    print(eff_nodes, eff_paths)
-    eff_nodes = eff_nodes.log()
+    # print(eff_nodes, eff_paths)
+    # eff_nodes = eff_nodes.log()
     return eff_nodes, eff_paths
 
 def NPB_linear_forward(self, x):
