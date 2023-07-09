@@ -94,9 +94,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         with torch.cuda.amp.autocast(enabled=enabled):
             output = model(data)
             loss = F.nll_loss(output, target)
-            # if args.method == 'score_npb' and args.lamb > 0:
-            #     eff_nodes, eff_paths = measure_node_path(model)
-            #     loss -= args.lamb * (args.alpha*eff_nodes + (1-args.alpha)*eff_paths)
+            if args.method == 'score_npb' and args.lamb > 0:
+                eff_nodes, eff_paths = measure_node_path(model)
+                loss -= args.lamb * (args.alpha*eff_nodes + (1-args.alpha)*eff_paths)
 
         train_loss += loss.item()
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
