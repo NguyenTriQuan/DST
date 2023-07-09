@@ -66,6 +66,25 @@ class TopK(torch.autograd.Function):
         # send the gradient g straight-through on the backward pass.
         return g, None
     
+class NotZeros(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, scores):
+        # Get the supermask by sorting the scores and using the top k%
+        out = scores.clone()
+        # _, idx = scores.flatten().sort()
+        # j = int((1 - k) * scores.numel())
+
+        # flat_out and out access the same memory.
+        # flat_out = out.flatten()
+        out[out == 0] = 0
+        out[out != 0] = 1
+        return out
+
+    @staticmethod
+    def backward(ctx, g):
+        # send the gradient g straight-through on the backward pass.
+        return g, None
+    
 # NPB core #
 
 def measure_node_path(model):
@@ -92,8 +111,8 @@ def measure_node_path(model):
         if hasattr(m, 'score'):
             if len(m.weight.shape) == 4:
 
-                temp = torch.where(m.weight.grad != 0, 1, 0).sum((1,2,3))
-                eff_nodes += torch.where(temp != 0, 1, 0).sum()
+                temp = NotZeros.apply(m.weight.grad).sum((1,2,3))
+                eff_nodes += torch.clamp(temp, max=1).sum()
                 # eff_nodes += m.weight.grad.abs().sum()
             # eff_nodes += m.eff_nodes
             # m.eff_nodes = None
