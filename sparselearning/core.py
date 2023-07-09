@@ -57,8 +57,8 @@ class TopK(torch.autograd.Function):
 
         # flat_out and out access the same memory.
         flat_out = out.flatten()
-        flat_out[idx[:k]] = 0
-        flat_out[idx[k:]] = 1
+        flat_out[idx[:k]] = 0.0
+        flat_out[idx[k:]] = 1.0
         return out
 
     @staticmethod
@@ -66,7 +66,7 @@ class TopK(torch.autograd.Function):
         # send the gradient g straight-through on the backward pass.
         return g, None
     
-class NotZeros(torch.autograd.Function):
+class NotZero(torch.autograd.Function):
     @staticmethod
     def forward(ctx, scores):
         # Get the supermask by sorting the scores and using the top k%
@@ -76,8 +76,9 @@ class NotZeros(torch.autograd.Function):
 
         # flat_out and out access the same memory.
         # flat_out = out.flatten()
-        out[out == 0] = 0
-        out[out != 0] = 1
+        mask = out == 0
+        out[mask] = 0.0
+        out[~mask] = 1.0
         return out
 
     @staticmethod
