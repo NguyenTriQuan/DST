@@ -128,6 +128,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     # training summary
     train_acc = 100. * correct / float(n)
     train_loss = train_loss/batch_idx
+    optimizer.zero_grad()
     with torch.cuda.amp.autocast(enabled=enabled):
         eff_nodes, eff_paths = measure_node_path(model)
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}, Eff paths: {} \n'.format(
