@@ -86,7 +86,7 @@ def measure_node_path(model):
     x = torch.zeros((1, 3, 32, 32)).float().cuda()
     paths_out = model(x)
     eff_paths = torch.logsumexp(paths_out, dim=1)[0]
-    # print(eff_paths)
+    print(eff_paths, paths_out)
     eff_nodes = 0
     for m in model.modules():
         # if hasattr(m, 'score'):
