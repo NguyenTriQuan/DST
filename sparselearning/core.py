@@ -112,7 +112,9 @@ def measure_node_path(model):
             if len(m.weight.shape) == 4:
                 # temp = NotZeros.apply(m.weight.grad).sum((1,2,3))
                 # eff_nodes += torch.clamp(temp, max=1).sum()
-                eff_nodes += torch.sign(m.weight.grad.abs().sum((1,2,3))).sum()
+                temp = torch.sign(m.weight.grad.abs().sum((1,2,3))).sum()
+                # print(temp)
+                eff_nodes += temp
             else:
                 # temp = NotZeros.apply(m.weight.grad).sum((1))
                 # eff_nodes += torch.clamp(temp, max=1).sum()
@@ -121,7 +123,7 @@ def measure_node_path(model):
             # eff_nodes += m.eff_nodes
             # m.eff_nodes = None
         m.measure = False
-    # print(eff_nodes, eff_paths)
+    print(eff_nodes, eff_paths)
     return eff_nodes, eff_paths
 
 def NPB_linear_forward(self, x):
