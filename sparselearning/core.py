@@ -112,11 +112,11 @@ def measure_node_path(model):
             if len(m.weight.shape) == 4:
                 # temp = NotZeros.apply(m.weight.grad).sum((1,2,3))
                 # eff_nodes += torch.clamp(temp, max=1).sum()
-                eff_nodes += torch.sign(m.weight.grad.abs().sum(1,2,3)).sum()
+                eff_nodes += torch.sign(m.weight.grad.abs().sum((1,2,3))).sum()
             else:
                 # temp = NotZeros.apply(m.weight.grad).sum((1))
                 # eff_nodes += torch.clamp(temp, max=1).sum()
-                eff_nodes += torch.sign(m.weight.grad.abs().sum(1)).sum()
+                eff_nodes += torch.sign(m.weight.grad.abs().sum((1))).sum()
                 # eff_nodes += m.weight.grad.abs().sum()
             # eff_nodes += m.eff_nodes
             # m.eff_nodes = None
