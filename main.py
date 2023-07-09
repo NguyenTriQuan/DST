@@ -90,8 +90,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
         data, target = data.to(device), target.to(device)
         if args.fp16: data = data.half()
-        # optimizer.zero_grad()
-        model.zero_grad()
+        optimizer.zero_grad()
+        # model.zero_grad()
         with torch.cuda.amp.autocast(enabled=enabled):
             output = model(data)
             loss = F.nll_loss(output, target)
