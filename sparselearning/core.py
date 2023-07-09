@@ -114,7 +114,7 @@ def measure_node_path(model):
     eff_nodes = 0
     for m in model.modules():
         if hasattr(m, 'score'):
-            grad_dummy = torch.autograd.grad(eff_paths, m.dummy, retain_graph=True, create_graph=True)
+            grad_dummy, = torch.autograd.grad(eff_paths, m.dummy, retain_graph=True, create_graph=True)
             if len(m.weight.shape) == 4:
                 # temp = NotZeros.apply(m.weight.grad).sum((1,2,3))
                 # eff_nodes += torch.clamp(temp, max=1).sum()
