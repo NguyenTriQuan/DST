@@ -102,7 +102,7 @@ def measure_node_path(model):
     # return eff_nodes, eff_paths
     for m in model.modules():
         if hasattr(m, 'score'):
-            print(m.dummy.grad)
+            print(m.dummy.shape, m.dummy.grad)
     model.apply(lambda m: setattr(m, "measure", True))
     x = torch.zeros((1, 3, 32, 32)).float().cuda()
     paths_out = model(x)
