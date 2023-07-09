@@ -104,7 +104,8 @@ def measure_node_path(model):
     model.apply(lambda m: setattr(m, "measure", True))
     x = torch.zeros((1, 3, 32, 32)).float().cuda()
     paths_out = model(x)
-    eff_paths = torch.logsumexp(paths_out, dim=1)[0]
+    eff_paths = torch.logsumexp(paths_out, dim=(0,1))
+    eff_paths.backward(retain_graph=True, create_graph=True)
     # print(eff_paths, paths_out)
     eff_nodes = 0
     for m in model.modules():
@@ -112,15 +113,12 @@ def measure_node_path(model):
             if len(m.weight.shape) == 4:
                 # temp = NotZeros.apply(m.weight.grad).sum((1,2,3))
                 # eff_nodes += torch.clamp(temp, max=1).sum()
-                # temp = torch.sign(m.weight.grad.abs().sum((1,2,3))).sum()
-                print(m.weight.grad.abs().max())
-                # eff_nodes += temp
+                eff_nodes += torch.sign(m.dummy.grad.abs().sum((1,2,3))).sum()
             else:
                 # temp = NotZeros.apply(m.weight.grad).sum((1))
                 # eff_nodes += torch.clamp(temp, max=1).sum()
-                print(m.weight.grad.abs().max())
-                # eff_nodes += torch.sign(m.weight.grad.abs().sum((1))).sum()
-                # eff_nodes += m.weight.grad.abs().sum()
+                # print(m.weight.grad.abs().max())
+                eff_nodes += torch.sign(m.dummy.grad.abs().sum((1))).sum()
             # eff_nodes += m.eff_nodes
             # m.eff_nodes = None
         m.measure = False
@@ -143,7 +141,7 @@ def NPB_linear_forward(self, x):
         # return nodes_out, paths_out
 
         x_max = torch.max(x)
-        return torch.log(F.linear((x-x_max).exp(), self.mask, None)+1e-6) + x_max
+        return torch.log(F.linear((x-x_max).exp(), self.mask*self.dummy, None)+1e-6) + x_max
     else:
         if self.training:
             self.mask = TopK.apply(self.score.abs(), self.num_zeros)
@@ -158,7 +156,7 @@ def NPB_conv_forward(self, x):
         # nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1,1,1)), dim=(1,2,3)), max=1)
         # return nodes_out, paths_out
         x_max = torch.max(x)
-        return torch.log(self._conv_forward((x-x_max).exp(), self.mask, None)+1e-6) + x_max
+        return torch.log(self._conv_forward((x-x_max).exp(), self.mask*self.dummy, None)+1e-6) + x_max
     else:
         if self.training:
             self.mask = TopK.apply(self.score.abs(), self.num_zeros)
@@ -194,11 +192,13 @@ def NPB_register(model):
     for m in model.modules():
         if isinstance(m, nn.Linear):
             m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
+            m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()
             nn.init.kaiming_normal_(m.score)
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_linear_forward.__get__(m, m.__class__))
         elif isinstance(m, nn.Conv2d):
             m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
+            m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()
             nn.init.kaiming_normal_(m.score)
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_conv_forward.__get__(m, m.__class__))
