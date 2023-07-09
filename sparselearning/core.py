@@ -68,7 +68,7 @@ class TopK(torch.autograd.Function):
     
 # NPB core #
 
-def measure_node_path(model):
+def measure_node_path(model, loss=None):
     # model.apply(lambda m: setattr(m, "measure", True))
     # # x = torch.ones((1, 3, 32, 32)).float().cuda()
     # x = (torch.ones(3).float().cuda(), torch.zeros(3).float().cuda())
