@@ -127,6 +127,7 @@ def measure_node_path(model):
             # m.eff_nodes = None
         m.measure = False
     # print(eff_nodes, eff_paths)
+    eff_nodes = eff_nodes.log()
     return eff_nodes, eff_paths
 
 def NPB_linear_forward(self, x):
