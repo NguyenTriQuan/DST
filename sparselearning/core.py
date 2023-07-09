@@ -100,32 +100,37 @@ def measure_node_path(model):
     #         m.eff_nodes = None
     #     m.measure = False
     # return eff_nodes, eff_paths
-    # for m in model.modules():
-    #     m.measure = True
-    #     if hasattr(m, 'score'):
-    #         m.dummy.grad = None
+    dummy = []
+    for m in model.modules():
+        m.measure = True
+        if hasattr(m, 'score'):
+            dummy.append(m.dummy)
             # print(m.dummy.shape, m.dummy.grad)
     model.apply(lambda m: setattr(m, "measure", True))
     x = torch.zeros((1, 3, 32, 32)).float().cuda()
     eff_paths = model(x)
     eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
+    grad_dummy = torch.autograd.grad(eff_paths, dummy, retain_graph=True, create_graph=True)
+    print(grad_dummy)
     # eff_paths.backward(retain_graph=True, create_graph=True)
     # print(eff_paths, paths_out)
     eff_nodes = 0
+    i = 0
     for m in model.modules():
         if hasattr(m, 'score'):
             grad_dummy, = torch.autograd.grad(eff_paths, m.dummy, retain_graph=True, create_graph=True)
             if len(m.weight.shape) == 4:
                 # temp = NotZeros.apply(m.weight.grad).sum((1,2,3))
                 # eff_nodes += torch.clamp(temp, max=1).sum()
-                eff_nodes += torch.sign(grad_dummy.abs().sum((1,2,3))).sum()
+                eff_nodes += torch.sign(grad_dummy[i].abs().sum((1,2,3))).sum()
             else:
                 # temp = NotZeros.apply(m.weight.grad).sum((1))
                 # eff_nodes += torch.clamp(temp, max=1).sum()
                 # print(m.weight.grad.abs().max())
-                eff_nodes += torch.sign(grad_dummy.abs().sum((1))).sum()
+                eff_nodes += torch.sign(grad_dummy[i].abs().sum((1))).sum()
             # eff_nodes += m.eff_nodes
             # m.eff_nodes = None
+            i += 1
         m.measure = False
     # print(eff_nodes, eff_paths)
     # eff_nodes = eff_nodes.log()
