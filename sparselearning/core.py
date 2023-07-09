@@ -91,8 +91,10 @@ def measure_node_path(model):
     for m in model.modules():
         if hasattr(m, 'score'):
             if len(m.weight.shape) == 4:
-                temp = torch.where(m.weight.grad.data != 0, 1, 0).sum((1,2,3))
-                eff_nodes += torch.where(temp != 0, 1, 0).sum()
+
+                # temp = torch.where(m.weight.grad.data != 0, 1, 0).sum((1,2,3))
+                # eff_nodes += torch.where(temp != 0, 1, 0).sum()
+                eff_nodes += m.weight.grad.abs().sum()
             # eff_nodes += m.eff_nodes
             # m.eff_nodes = None
         m.measure = False
