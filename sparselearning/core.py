@@ -113,7 +113,7 @@ def measure_node_path(model):
                 # temp = NotZeros.apply(m.weight.grad).sum((1,2,3))
                 # eff_nodes += torch.clamp(temp, max=1).sum()
                 temp = torch.sign(m.weight.grad.abs().sum((1,2,3))).sum()
-                # print(temp)
+                print(m.weight.grad)
                 eff_nodes += temp
             else:
                 # temp = NotZeros.apply(m.weight.grad).sum((1))
