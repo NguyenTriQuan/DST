@@ -68,7 +68,7 @@ class TopK(torch.autograd.Function):
     
 # NPB core #
 
-def measure_node_path(model, loss=None):
+def measure_node_path(model):
     # model.apply(lambda m: setattr(m, "measure", True))
     # # x = torch.ones((1, 3, 32, 32)).float().cuda()
     # x = (torch.ones(3).float().cuda(), torch.zeros(3).float().cuda())
@@ -92,9 +92,9 @@ def measure_node_path(model, loss=None):
         if hasattr(m, 'score'):
             if len(m.weight.shape) == 4:
 
-                # temp = torch.where(m.weight.grad.data != 0, 1, 0).sum((1,2,3))
-                # eff_nodes += torch.where(temp != 0, 1, 0).sum()
-                eff_nodes += m.weight.grad.abs().sum()
+                temp = torch.where(m.weight.grad != 0, 1, 0).sum((1,2,3))
+                eff_nodes += torch.where(temp != 0, 1, 0).sum()
+                # eff_nodes += m.weight.grad.abs().sum()
             # eff_nodes += m.eff_nodes
             # m.eff_nodes = None
         m.measure = False
