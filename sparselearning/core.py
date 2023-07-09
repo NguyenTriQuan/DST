@@ -87,33 +87,8 @@ class NotZeros(torch.autograd.Function):
     
 # NPB core #
 
-def measure_node_path(model):
-    # model.apply(lambda m: setattr(m, "measure", True))
-    # # x = torch.ones((1, 3, 32, 32)).float().cuda()
-    # x = (torch.ones(3).float().cuda(), torch.zeros(3).float().cuda())
-    # nodes_out, paths_out = model(x)
-    # eff_paths = torch.logsumexp(paths_out, dim=0)
-    # eff_nodes = 0
-    # for m in model.modules():
-    #     if hasattr(m, 'score'):
-    #         eff_nodes += m.eff_nodes
-    #         m.eff_nodes = None
-    #     m.measure = False
-    # return eff_nodes, eff_paths
-    dummy = []
-    for m in model.modules():
-        m.measure = True
-        if hasattr(m, 'score'):
-            dummy.append(m.dummy)
-            # print(m.dummy.shape, m.dummy.grad)
-    model.apply(lambda m: setattr(m, "measure", True))
-    x = torch.zeros((1, 3, 32, 32)).float().cuda()
-    eff_paths = model(x)
-    eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
+def measure_node_path(model, grad_dummy):
     grad_dummy = torch.autograd.grad(eff_paths, dummy, retain_graph=True, create_graph=True)
-    # print(len(grad_dummy))
-    # eff_paths.backward(retain_graph=True, create_graph=True)
-    # print(eff_paths, paths_out)
     eff_nodes = 0
     i = 0
     for m in model.modules():
@@ -137,52 +112,67 @@ def measure_node_path(model):
     return eff_nodes, eff_paths
 
 def NPB_linear_forward(self, x):
-    if self.measure:
-        # nodes_in, paths_in = x
+    # if self.measure:
+    #     # nodes_in, paths_in = x
 
-        # if paths_in.shape[0] != self.mask.shape[1]:
-        #     s = math.ceil(math.sqrt(self.mask.shape[1]/paths_in.shape[0]))
-        #     paths_in = paths_in.view(paths_in.shape[0], 1, 1).expand(paths_in.shape[0], s, s).contiguous().view(-1)
-        #     nodes_in = nodes_in.view(nodes_in.shape[0], 1, 1).expand(nodes_in.shape[0], s, s).contiguous().view(-1)
+    #     # if paths_in.shape[0] != self.mask.shape[1]:
+    #     #     s = math.ceil(math.sqrt(self.mask.shape[1]/paths_in.shape[0]))
+    #     #     paths_in = paths_in.view(paths_in.shape[0], 1, 1).expand(paths_in.shape[0], s, s).contiguous().view(-1)
+    #     #     nodes_in = nodes_in.view(nodes_in.shape[0], 1, 1).expand(nodes_in.shape[0], s, s).contiguous().view(-1)
 
-        # paths_out = torch.logsumexp(torch.log(self.mask+1e-12) + paths_in.view((1,-1)), dim=(1))
-        # nodes_in = torch.clamp(torch.sum(self.mask, dim=(0)) * nodes_in, max=1)
-        # self.eff_nodes = nodes_in.sum()
-        # nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1)), dim=(1)), max=1)
-        # return nodes_out, paths_out
+    #     # paths_out = torch.logsumexp(torch.log(self.mask+1e-12) + paths_in.view((1,-1)), dim=(1))
+    #     # nodes_in = torch.clamp(torch.sum(self.mask, dim=(0)) * nodes_in, max=1)
+    #     # self.eff_nodes = nodes_in.sum()
+    #     # nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1)), dim=(1)), max=1)
+    #     # return nodes_out, paths_out
 
-        x_max = torch.max(x)
-        return torch.log(F.linear((x-x_max).exp(), self.mask*self.dummy, None)+1e-6) + x_max
+    #     x_max = torch.max(x)
+    #     return torch.log(F.linear((x-x_max).exp(), self.mask*self.dummy, None)+1e-6) + x_max
+    # else:
+    if self.training:
+        self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        eff_paths, images = x
+        max_paths = eff_paths.max()
+        eff_paths = torch.log(F.linear((eff_paths - max_paths).exp(), self.mask * self.dummy, None)+1e-6) + max_paths
+        out = F.linear(images, self.mask * self.weight, self.bias)
+        return eff_paths, out
     else:
-        if self.training:
-            self.mask = TopK.apply(self.score.abs(), self.num_zeros)
         return F.linear(x, self.mask * self.weight, self.bias)
     
 def NPB_conv_forward(self, x):
-    if self.measure:
-        # nodes_in, paths_in = x
-        # paths_out = torch.logsumexp(torch.log(self.mask+1e-12) + paths_in.view((1,-1,1,1)), dim=(1,2,3))
-        # nodes_in = torch.clamp(torch.sum(self.mask, dim=(0,2,3)) * nodes_in, max=1)
-        # self.eff_nodes = nodes_in.sum()
-        # nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1,1,1)), dim=(1,2,3)), max=1)
-        # return nodes_out, paths_out
-        x_max = torch.max(x)
-        return torch.log(self._conv_forward((x-x_max).exp(), self.mask*self.dummy, None)+1e-6) + x_max
+    # if self.measure:
+    #     # nodes_in, paths_in = x
+    #     # paths_out = torch.logsumexp(torch.log(self.mask+1e-12) + paths_in.view((1,-1,1,1)), dim=(1,2,3))
+    #     # nodes_in = torch.clamp(torch.sum(self.mask, dim=(0,2,3)) * nodes_in, max=1)
+    #     # self.eff_nodes = nodes_in.sum()
+    #     # nodes_out = torch.clamp(torch.sum(self.mask * nodes_in.view((1,-1,1,1)), dim=(1,2,3)), max=1)
+    #     # return nodes_out, paths_out
+    #     x_max = torch.max(x)
+    #     return torch.log(self._conv_forward((x-x_max).exp(), self.mask*self.dummy, None)+1e-6) + x_max
+    # else:
+    if self.training:
+        self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        eff_paths, images = x
+        max_paths = eff_paths.max()
+        eff_paths = torch.log(self._conv_forward((eff_paths - max_paths).exp(), self.mask * self.dummy, None)+1e-6) + max_paths
+        out = self._conv_forward(images, self.weight * self.mask, self.bias)
+        return eff_paths, out
     else:
-        if self.training:
-            self.mask = TopK.apply(self.score.abs(), self.num_zeros)
         return self._conv_forward(x, self.weight * self.mask, self.bias)
     
 def NPB_dummy_forward(self, x):
-    if self.measure:
-        return x
+    if self.training:
+        return x[0], self.original_forward(x[1])
     else:
         return self.original_forward(x)
     
 def NPB_stable_forward(self, x):
-    if self.measure:
-        x_max = torch.max(x)
-        return torch.log(self.original_forward((x-x_max).exp())+1e-6) + x_max
+    if self.training:
+        eff_paths, images = x
+        max_paths = eff_paths.max()
+        eff_paths = torch.log(self.original_forward((eff_paths - max_paths).exp())+1e-6) + max_paths
+        out = self.original_forward(images)
+        return eff_paths, out
     else:
         return self.original_forward(x)
 
@@ -194,12 +184,12 @@ def NPB_residual_forward(self, x, y):
         # paths_out = torch.logsumexp(torch.stack([paths_in_x, paths_in_y], dim=0), dim=0)
         # return nodes_out, paths_out
         # print((x==-math.inf).sum(), (x==-math.inf).sum())
-        return torch.logsumexp(torch.stack([x, y], dim=0), dim=0)
+        return torch.logsumexp(torch.stack([x[0], y[0]], dim=0), dim=0), x[1] + y[1]
     else:
         return self.original_forward(x, y)
 
 def NPB_register(model):
-    model.apply(lambda m: setattr(m, "measure", False))
+    # model.apply(lambda m: setattr(m, "measure", False))
     for m in model.modules():
         if isinstance(m, nn.Linear):
             m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
@@ -222,6 +212,8 @@ def NPB_register(model):
         elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.ReLU) or isinstance(m, nn.Dropout):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
+    
+    model.dummy = [m.dummy for m in model.modules() if hasattr(m, 'dummy')]
 
             
 class Masking(object):

@@ -91,13 +91,20 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         data, target = data.to(device), target.to(device)
         if args.fp16: data = data.half()
         optimizer.zero_grad()
-        # model.zero_grad()
         with torch.cuda.amp.autocast(enabled=enabled):
-            output = model(data)
-            loss = F.nll_loss(output, target)
-            if args.method == 'score_npb' and args.lamb > 0:
-                # loss.backward(retain_graph=True, create_graph=True)
-                eff_nodes, eff_paths = measure_node_path(model)
+            if args.method == 'score_npb':
+                _, c, h, w = data.shape
+                data = (torch.zeros((1, c, h, w)).float().cuda(), data)
+                eff_paths, output = model(data)
+                loss = F.nll_loss(output, target)
+                eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
+                grad_dummy = torch.autograd.grad(eff_paths, model.dummy, retain_graph=True, create_graph=True)
+                eff_nodes = 0
+                for grad in grad_dummy:
+                    if len(grad.shape) == 4:
+                        eff_nodes += torch.sign(grad.abs().sum((1,2,3))).sum()
+                    else:
+                        eff_nodes += torch.sign(grad.abs().sum((1))).sum()
                 loss -= args.lamb * (args.alpha*eff_nodes.log() + (1-args.alpha)*eff_paths)
 
         train_loss += loss.item()
@@ -128,9 +135,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     # training summary
     train_acc = 100. * correct / float(n)
     train_loss = train_loss/batch_idx
-    optimizer.zero_grad()
-    with torch.cuda.amp.autocast(enabled=enabled):
-        eff_nodes, eff_paths = measure_node_path(model)
+
+    # with torch.cuda.amp.autocast(enabled=enabled):
+    #     eff_nodes, eff_paths = measure_node_path(model)
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}, Eff paths: {} \n'.format(
         'Training summary' ,
         train_loss, correct, n, train_acc, eff_nodes, eff_paths))
