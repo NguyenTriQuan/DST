@@ -177,7 +177,7 @@ def NPB_stable_forward(self, x):
         return self.original_forward(x)
 
 def NPB_residual_forward(self, x, y):
-    if self.measure:
+    if self.training:
         # nodes_in_x, paths_in_x = x
         # nodes_in_y, paths_in_y = y
         # nodes_out = torch.maximum(nodes_in_x, nodes_in_y)
