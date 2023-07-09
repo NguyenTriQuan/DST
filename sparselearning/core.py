@@ -111,6 +111,7 @@ def measure_node_path(model):
     eff_paths = model(x)
     eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
     grad_dummy = torch.autograd.grad(eff_paths, dummy, retain_graph=True, create_graph=True)
+    print(len(grad_dummy))
     # eff_paths.backward(retain_graph=True, create_graph=True)
     # print(eff_paths, paths_out)
     eff_nodes = 0
