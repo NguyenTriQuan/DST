@@ -103,10 +103,10 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 for grad in grad_dummy:
                     if len(grad.shape) == 4:
                         # eff_nodes += torch.sign(grad.abs().sum((1,2,3))).sum()
-                        eff_nodes += torch.clamp(grad.abs().sign().sum(1,2,3), max=1).sum()
+                        eff_nodes += torch.clamp(grad.abs().sign().sum((1,2,3)), max=1).sum()
                     else:
                         # eff_nodes += torch.sign(grad.abs().sum((1))).sum()
-                        eff_nodes += torch.clamp(grad.abs().sign().sum(1), max=1).sum()
+                        eff_nodes += torch.clamp(grad.abs().sign().sum((1)), max=1).sum()
                 loss -= args.lamb * (args.alpha*eff_nodes.log() + (1-args.alpha)*eff_paths)
 
         train_loss += loss.item()
