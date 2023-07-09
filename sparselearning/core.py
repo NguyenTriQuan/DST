@@ -213,7 +213,7 @@ def NPB_register(model):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
     
-    model.dummy = [m.dummy for m in model.modules() if hasattr(m, 'score')]
+    model.dummies = [m.dummy for m in model.modules() if hasattr(m, 'score')]
     model.weights = [m.weight for m in model.modules() if hasattr(m, 'score')]
 
             
