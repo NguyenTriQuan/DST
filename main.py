@@ -98,13 +98,15 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 eff_paths, output = model(data)
                 loss = F.nll_loss(output, target)
                 eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
-                grad_dummy = torch.autograd.grad(loss, model.weights, retain_graph=True, create_graph=True)
+                grad_dummy = torch.autograd.grad(eff_paths, model.dummies, retain_graph=True, create_graph=True)
                 eff_nodes = 0
                 for grad in grad_dummy:
                     if len(grad.shape) == 4:
-                        eff_nodes += torch.sign(grad.abs().sum((1,2,3))).sum()
+                        # eff_nodes += torch.sign(grad.abs().sum((1,2,3))).sum()
+                        eff_nodes += torch.clamp(grad.abs().sign().sum(1,2,3), max=1).sum()
                     else:
-                        eff_nodes += torch.sign(grad.abs().sum((1))).sum()
+                        # eff_nodes += torch.sign(grad.abs().sum((1))).sum()
+                        eff_nodes += torch.clamp(grad.abs().sign().sum(1), max=1).sum()
                 loss -= args.lamb * (args.alpha*eff_nodes.log() + (1-args.alpha)*eff_paths)
 
         train_loss += loss.item()
