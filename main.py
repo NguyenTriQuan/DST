@@ -101,7 +101,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 dummies = []
                 for m in model.modules():
                     if hasattr(m, 'score'):
-                        m.eff_paths.requires_grad = True
+                        # m.eff_paths.requires_grad = True
                         dummies.append(m.eff_paths)
                 grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
                 # grad_dummy = torch.autograd.grad(loss, model.weights, retain_graph=True, create_graph=True)
