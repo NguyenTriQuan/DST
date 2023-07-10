@@ -86,6 +86,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         torch.backends.cudnn.benchmark = True
         scaler = torch.cuda.amp.GradScaler(enabled=True)
 
+    eff_nodes, total = 0, 0
     for batch_idx, (data, target) in enumerate(train_loader):
 
         data, target = data.to(device), target.to(device)
@@ -98,24 +99,26 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 eff_paths, output = model(data)
                 loss = F.nll_loss(output, target)
                 eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
-                dummies = []
-                for m in model.modules():
-                    if hasattr(m, 'score'):
-                        dummies.append(m.eff_paths)
-                grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
-                reg = 0
-                eff_nodes = 0
-                total = 0
-                for grad in grad_dummy:
-                    if len(grad.shape) == 4:
-                        temp = grad.norm(2, dim=(0,2,3))
-                    else:
-                        temp = grad.norm(2, dim=(0))
-                    reg += temp.sum()
-                    eff_nodes += (temp != 0).sum()
-                    total += temp.shape[0]
-                loss = loss - (args.alpha * reg + args.beta * eff_paths)
-                # print(eff_nodes, eff_paths)
+                
+                # dummies = []
+                # for m in model.modules():
+                #     if hasattr(m, 'score'):
+                #         dummies.append(m.eff_paths)
+                # grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
+                # reg = 0
+                # eff_nodes = 0
+                # total = 0
+                # for grad in grad_dummy:
+                #     if len(grad.shape) == 4:
+                #         temp = grad.norm(2, dim=(0,2,3))
+                #     else:
+                #         temp = grad.norm(2, dim=(0))
+                #     reg += temp.sum()
+                #     eff_nodes += (temp != 0).sum()
+                #     total += temp.shape[0]
+                # loss = loss - (args.alpha * reg + args.beta * eff_paths)
+
+                loss = loss - args.beta * eff_paths
 
         train_loss += loss.item()
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
@@ -150,6 +153,24 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     # with torch.cuda.amp.autocast(enabled=enabled):
     #     eff_nodes, eff_paths = measure_node_path(model)
     # eff_nodes = sum([grad.abs().sum((1,2,3)).sign().sum() if len(grad.shape) == 4 else grad.abs().sum((1)).sign().sum() for grad in grad_dummy])
+    data = (torch.zeros((1, c, h, w)).float().cuda(), torch.zeros((1, c, h, w)).float().cuda())
+    eff_paths, output = model(data)
+    eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
+    dummies = []
+    for m in model.modules():
+        if hasattr(m, 'score'):
+            dummies.append(m.eff_paths)
+    grad_dummy = torch.autograd.grad(eff_paths, dummies)
+    eff_nodes = 0
+    total = 0
+    for grad in grad_dummy:
+        if len(grad.shape) == 4:
+            temp = grad.norm(2, dim=(0,2,3))
+        else:
+            temp = grad.norm(2, dim=(0))
+        eff_nodes += (temp != 0).sum()
+        total += temp.shape[0]
+
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {} \n'.format(
         'Training summary' ,
         train_loss, correct, n, train_acc, eff_nodes, total, eff_paths))
