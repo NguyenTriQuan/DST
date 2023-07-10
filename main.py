@@ -132,7 +132,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         if mask is not None: mask.step()
 
         if batch_idx % args.log_interval == 0:
-            eff_nodes = sum([grad.sum((1,2,3)).sign().sum() if len(grad.shape) == 4 else grad.sum((1)).sign().sum() for grad in grad_dummy])
+            eff_nodes = sum([grad.abs().sum((1,2,3)).sign().sum() if len(grad.shape) == 4 else grad.abs().sum((1)).sign().sum() for grad in grad_dummy])
             print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}, Eff paths: {}'.format(
                 epoch, batch_idx * len(data), len(train_loader)*args.batch_size,
                 100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), eff_nodes, eff_paths))
@@ -144,7 +144,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
     # with torch.cuda.amp.autocast(enabled=enabled):
     #     eff_nodes, eff_paths = measure_node_path(model)
-    eff_nodes = sum([grad.sum((1,2,3)).sign().sum() if len(grad.shape) == 4 else grad.sum((1)).sign().sum() for grad in grad_dummy])
+    eff_nodes = sum([grad.abs().sum((1,2,3)).sign().sum() if len(grad.shape) == 4 else grad.abs().sum((1)).sign().sum() for grad in grad_dummy])
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}, Eff paths: {} \n'.format(
         'Training summary' ,
         train_loss, correct, n, train_acc, eff_nodes, eff_paths))
