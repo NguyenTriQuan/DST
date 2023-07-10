@@ -146,7 +146,7 @@ def NPB_stable_forward(self, x):
     if self.training:
         eff_paths, images = x
         max_paths = eff_paths.max()
-        eff_paths = torch.log(self.original_forward((eff_paths - max_paths).exp())+1e-6) + max_paths
+        eff_paths = torch.log(self.original_forward((eff_paths - max_paths).exp())) + max_paths
         out = self.original_forward(images)
         return eff_paths, out
     else:
