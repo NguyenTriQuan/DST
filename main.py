@@ -160,12 +160,12 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     for m in model.modules():
         if hasattr(m, 'score'):
             # dummies.append(m.eff_paths)
-            dummies.append(m.mask)
+            dummies.append(m.dummy)
     grad_dummy = torch.autograd.grad(eff_paths, dummies)
     eff_nodes = 0
     total = 0
     for i, grad in enumerate(grad_dummy):
-        print((grad != 0).sum(), dummies[i].sum(), grad.numel())
+        print((grad != 0).sum(), grad.numel())
         if len(grad.shape) == 4:
             # temp = grad.norm(2, dim=(0,2,3))
             temp = grad.norm(2, dim=(1,2,3))
