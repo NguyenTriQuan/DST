@@ -117,7 +117,7 @@ def NPB_linear_forward(self, x):
         self.mask = TopK.apply(self.score.abs(), self.num_zeros)
         eff_paths, images = x
         max_paths = eff_paths.max()
-        eff_paths = torch.log(F.linear((eff_paths - max_paths).exp(), self.mask, None)+1e-3) + max_paths
+        eff_paths = torch.log(F.linear((eff_paths - max_paths).exp(), self.mask*self.dummy, None)+1e-3) + max_paths
         out = F.linear(images, self.mask * self.weight, self.bias)
         self.eff_paths = eff_paths
         return eff_paths, out
@@ -129,7 +129,7 @@ def NPB_conv_forward(self, x):
         self.mask = TopK.apply(self.score.abs(), self.num_zeros)
         eff_paths, images = x
         max_paths = eff_paths.max()
-        eff_paths = torch.log(self._conv_forward((eff_paths - max_paths).exp(), self.mask, None)+1e-3) + max_paths
+        eff_paths = torch.log(self._conv_forward((eff_paths - max_paths).exp(), self.mask*self.dummy, None)+1e-3) + max_paths
         out = self._conv_forward(images, self.weight * self.mask, self.bias)
         self.eff_paths = eff_paths
         return eff_paths, out
@@ -163,11 +163,13 @@ def NPB_register(model):
     for m in model.modules():
         if isinstance(m, nn.Linear):
             m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
+            m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()
             nn.init.kaiming_normal_(m.score)
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_linear_forward.__get__(m, m.__class__))
         elif isinstance(m, nn.Conv2d):
             m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
+            m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()
             nn.init.kaiming_normal_(m.score)
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_conv_forward.__get__(m, m.__class__))
