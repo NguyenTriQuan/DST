@@ -105,18 +105,16 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
                 reg = 0
                 eff_nodes = 0
+                total = 0
                 for grad in grad_dummy:
-                    print(grad.shape, grad)
                     if len(grad.shape) == 4:
                         temp = grad.norm(2, dim=(0,2,3))
-                        reg += temp.sum()
-                        eff_nodes += (temp != 0).sum()
                     else:
                         temp = grad.norm(2, dim=(0))
-                        reg += temp.sum()
-                        eff_nodes += (temp != 0).sum()
+                    reg += temp.sum()
+                    eff_nodes += (temp != 0).sum()
+                    total += temp.shape[0]
                 loss -= args.alpha * reg + args.beta * eff_paths
-                # loss -= args.beta * eff_paths
                 # print(eff_nodes, eff_paths)
 
         train_loss += loss.item()
@@ -140,9 +138,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
         if batch_idx % args.log_interval == 0:
             # eff_nodes = sum([grad.abs().sum((1,2,3)).sign().sum() if len(grad.shape) == 4 else grad.abs().sum((1)).sign().sum() for grad in grad_dummy])
-            print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}, Eff paths: {}'.format(
+            print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}'.format(
                 epoch, batch_idx * len(data), len(train_loader)*args.batch_size,
-                100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), eff_nodes, eff_paths))
+                100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), eff_nodes, total, eff_paths))
 
 
     # training summary
@@ -152,9 +150,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     # with torch.cuda.amp.autocast(enabled=enabled):
     #     eff_nodes, eff_paths = measure_node_path(model)
     # eff_nodes = sum([grad.abs().sum((1,2,3)).sign().sum() if len(grad.shape) == 4 else grad.abs().sum((1)).sign().sum() for grad in grad_dummy])
-    print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}, Eff paths: {} \n'.format(
+    print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {} \n'.format(
         'Training summary' ,
-        train_loss, correct, n, train_acc, eff_nodes, eff_paths))
+        train_loss, correct, n, train_acc, eff_nodes, total, eff_paths))
     if args.wandb:
         wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch, 'eff nodes': eff_nodes, 'eff paths': eff_paths})
 
