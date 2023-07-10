@@ -99,7 +99,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 loss = F.nll_loss(output, target)
                 eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
                 # grad_dummy = torch.autograd.grad(eff_paths, model.dummies, retain_graph=True, create_graph=True)
-                grad_dummy = torch.autograd.grad(loss, model.weights, retain_graph=True, create_graph=True)
+                grad_dummy = torch.autograd.grad(scaler.scale(loss), model.weights, retain_graph=True, create_graph=True)
                 eff_nodes = 0
                 for grad in grad_dummy:
                     if len(grad.shape) == 4:
