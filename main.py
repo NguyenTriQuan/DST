@@ -175,7 +175,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
             eff_nodes += (grad.sum(dim=(1,2,3)) != 0).sum()
             eff_kernels += (grad.sum((2,3)) != 0).sum()
         else:
-            eff_nodes += (grad.sum(2, dim=(1)) != 0).sum()
+            eff_nodes += (grad.sum(dim=(1)) != 0).sum()
         
         eff_params += temp.sum()
         total_nodes += temp.shape[0]
