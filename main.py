@@ -107,6 +107,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 # grad_dummy = torch.autograd.grad(loss, model.weights, retain_graph=True, create_graph=True)
                 reg = 0
                 for grad in grad_dummy:
+                    print(grad.numel())
                     reg += grad.norm(2)
                     # if len(grad.shape) == 4:
                     #     reg += grad.norm(2, dim=(1,2,3)).sum()
