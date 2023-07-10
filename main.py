@@ -102,7 +102,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 # grad_dummy = torch.autograd.grad(loss, model.weights, retain_graph=True, create_graph=True)
                 eff_nodes = 0
                 for grad in grad_dummy:
-                    print(grad.norm(2), grad.mean(), grad.std())
+                    print(grad.norm(2), grad.max(), grad.min())
                     if len(grad.shape) == 4:
                         # eff_nodes += torch.sign(grad.abs().sum((1,2,3))).sum()
                         # eff_nodes += grad.abs().sign().sum((1,2,3)).sign().sum()
