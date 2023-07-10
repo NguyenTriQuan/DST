@@ -249,7 +249,7 @@ def main():
 
     if args.wandb:
         wandb.login(key='74ac7eba00fea7e805a70861a86c7767406946c9')
-        name = f'{args.model}_{args.data}_{args.method}_lamb_{args.lamb}_alpha_{args.alpha}'
+        name = f'{args.model}_{args.data}_{args.method}_alpha_{args.alpha}_beta_{args.beta}'
         run = wandb.init(
             # Set the project where this run will be logged
             project='DST',
