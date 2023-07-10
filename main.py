@@ -101,6 +101,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 grad_dummy = torch.autograd.grad(eff_paths, model.dummies, retain_graph=True, create_graph=True)
                 # grad_dummy = torch.autograd.grad(loss, model.weights, retain_graph=True, create_graph=True)
                 eff_nodes = 0
+                reg = 0
                 for grad in grad_dummy:
                     # print(grad.norm(2), grad.max(), grad.min())
                     if len(grad.shape) == 4:
@@ -108,12 +109,15 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         # eff_nodes += grad.abs().sign().sum((1,2,3)).sign().sum()
                         eff_nodes += NotZero.apply(NotZero.apply(grad).sum((1,2,3))).sum()
                         # eff_nodes += NotZero.apply(grad.sum((1,2,3))).sum()
+                        reg += grad.norm(2)
                     else:
                         # eff_nodes += torch.sign(grad.abs().sum((1))).sum()
                         # eff_nodes += grad.abs().sign().sum((1)).sign().sum()
                         eff_nodes += NotZero.apply(NotZero.apply(grad).sum((1))).sum()
                         # eff_nodes += NotZero.apply(grad.sum((1))).sum()
-                loss -= args.lamb * (args.alpha*eff_nodes.log() + (1-args.alpha)*eff_paths)
+                        reg += grad.norm(2)
+                # loss -= args.lamb * (args.alpha*eff_nodes.log() + (1-args.alpha)*eff_paths)
+                loss -= args.lamb * (args.alpha*reg + (1-args.alpha)*eff_paths)
                 # print(eff_nodes, eff_paths)
 
         train_loss += loss.item()
