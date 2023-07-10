@@ -106,13 +106,13 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                     if len(grad.shape) == 4:
                         # eff_nodes += torch.sign(grad.abs().sum((1,2,3))).sum()
                         # eff_nodes += grad.abs().sign().sum((1,2,3)).sign().sum()
-                        # eff_nodes += NotZero.apply(NotZero.apply(grad).sum((1,2,3))).sum()
-                        eff_nodes += NotZero.apply(grad.sum((1,2,3))).sum()
+                        eff_nodes += NotZero.apply(NotZero.apply(grad).sum((1,2,3))).sum()
+                        # eff_nodes += NotZero.apply(grad.sum((1,2,3))).sum()
                     else:
                         # eff_nodes += torch.sign(grad.abs().sum((1))).sum()
                         # eff_nodes += grad.abs().sign().sum((1)).sign().sum()
-                        # eff_nodes += NotZero.apply(NotZero.apply(grad).sum((1))).sum()
-                        eff_nodes += NotZero.apply(grad.sum((1))).sum()
+                        eff_nodes += NotZero.apply(NotZero.apply(grad).sum((1))).sum()
+                        # eff_nodes += NotZero.apply(grad.sum((1))).sum()
                 loss -= args.lamb * (args.alpha*eff_nodes.log() + (1-args.alpha)*eff_paths)
                 # print(eff_nodes, eff_paths)
 
