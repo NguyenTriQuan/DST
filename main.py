@@ -113,7 +113,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         temp = grad.sum((1))
                         reg += temp.sum()
                         temps.append(temp.detach())
-                loss -= args.lamb * (args.alpha*reg + (1-args.alpha)*eff_paths)
+                loss -= args.alpha * reg + args.beta * eff_paths
                 # print(eff_nodes, eff_paths)
 
         train_loss += loss.item()
@@ -217,6 +217,7 @@ def main():
     parser.add_argument('--model', type=str, default='')
     parser.add_argument('--method', type=str, default='')
     parser.add_argument('--alpha', type=float, default=0.5, required=False)
+    parser.add_argument('--beta', type=float, default=0.5, required=False)
     parser.add_argument('--lamb', type=float, default=0.001, required=False)
     parser.add_argument('--l2', type=float, default=5.0e-4)
     parser.add_argument('--iters', type=int, default=1, help='How many times the model should be run after each other. Default=1')
