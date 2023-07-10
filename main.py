@@ -108,11 +108,11 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                     if len(grad.shape) == 4:
                         temp = grad.sum((1,2,3))
                         reg += temp.sum()
-                        eff_nodes += temp.sign().sum().item()
+                        eff_nodes += temp.detach().sign().sum().item()
                     else:
                         temp = grad.sum((1))
                         reg += temp.sum()
-                        eff_nodes += temp.sign().sum().item()
+                        eff_nodes += temp.detach().sign().sum().item()
                 loss -= args.lamb * (args.alpha*reg + (1-args.alpha)*eff_paths)
                 # print(eff_nodes, eff_paths)
 
