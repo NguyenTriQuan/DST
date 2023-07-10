@@ -104,7 +104,6 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 temps = []
                 for grad in grad_dummy:
                     # print(grad.norm(2), grad.max(), grad.min())
-                    reg += grad.abs().sum()
                     if len(grad.shape) == 4:
                         temp = grad.sum((1,2,3))
                         reg += temp.sum()
