@@ -164,8 +164,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     grad_dummy = torch.autograd.grad(eff_paths, dummies)
     eff_nodes = 0
     total = 0
-    for grad in grad_dummy:
-        print((grad != 0).sum(), grad.numel())
+    for i, grad in enumerate(grad_dummy):
+        print((grad != 0).sum(), dummies[i].sum(), grad.numel())
         if len(grad.shape) == 4:
             # temp = grad.norm(2, dim=(0,2,3))
             temp = grad.norm(2, dim=(1,2,3))
