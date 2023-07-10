@@ -103,11 +103,11 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 reg = 0
                 for grad in grad_dummy:
                     if len(grad.shape) == 4:
-                        # reg += grad.norm(2, dim=(1,2,3)).sum()
-                        reg += NotZero.apply(grad.norm(2, dim=(1,2,3))).sum()
+                        reg += grad.norm(2, dim=(1,2,3)).sum()
+                        # reg += NotZero.apply(grad.norm(2, dim=(1,2,3))).sum()
                     else:
-                        # reg += grad.norm(2, dim=(1)).sum()
-                        reg += NotZero.apply(grad.norm(2, dim=(1))).sum()
+                        reg += grad.norm(2, dim=(1)).sum()
+                        # reg += NotZero.apply(grad.norm(2, dim=(1))).sum()
                 loss -= args.alpha * reg + args.beta * eff_paths
                 # loss -= args.beta * eff_paths
                 # print(eff_nodes, eff_paths)
