@@ -345,8 +345,9 @@ class Masking(object):
                     if hasattr(m, 'num_zeros'):
                         if n in name:
                             m.num_zeros = math.ceil((1-density_dict[name])*m.weight.numel())
-                            m.mask = TopK.apply(m.score.abs(), m.num_zeros).detach()
-                            m.fired_mask = m.mask.clone()
+                            if hasattr(m, 'score'):
+                                m.mask = TopK.apply(m.score.abs(), m.num_zeros).detach()
+                                m.fired_mask = m.mask.clone()
             print(f"Overall sparsity {total_nonzero / total_params}")
 
         self.apply_mask()
