@@ -113,7 +113,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         temp = grad.norm(2, dim=(0,2,3))
                     else:
                         temp = grad.norm(2, dim=(0))
-                    reg += temp.sum()
+                    # reg += temp.sum()
+                    reg += temp / (temp.detach()+1e-6)
                     eff_nodes += (temp != 0).sum()
                     total += temp.shape[0]
                 loss = loss - (args.alpha * reg + args.beta * eff_paths)
