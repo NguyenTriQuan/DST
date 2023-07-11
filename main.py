@@ -93,7 +93,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         if args.fp16: data = data.half()
         optimizer.zero_grad()
         with torch.cuda.amp.autocast(enabled=enabled):
-            if args.method == 'score_npb':
+            if 'npb' in args.method:
                 _, c, h, w = data.shape
                 data = (torch.zeros((1, c, h, w)).float().cuda(), data)
                 eff_paths, output = model(data)
@@ -103,15 +103,15 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 if args.alpha > 0:
                     dummies = []
                     for m in model.modules():
-                        if hasattr(m, 'score'):
+                        if hasattr(m, 'eff_paths'):
                             dummies.append(m.eff_paths)
                     grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
                     eff_nodes = 0
                     total = 0
-                    reg = 0
+                    # reg = 0
                     for grad in grad_dummy:
                         if len(grad.shape) == 4:
-                            reg += grad.std(dim=(2,3)).sum()
+                            # reg += grad.std(dim=(2,3)).sum()
                             temp = grad.norm(2, dim=(0,2,3))
                         else:
                             temp = grad.norm(2, dim=(0))
@@ -120,7 +120,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         eff_nodes += torch.sum(temp / (temp + eps))
                         total += temp.shape[0]
 
-                loss = loss - (args.alpha * eff_nodes + args.beta * eff_paths) + args.lamb * reg
+                loss = loss - (args.alpha * eff_nodes + args.beta * eff_paths)
+
 
         train_loss += loss.item()
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
@@ -142,7 +143,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         if mask is not None: mask.step()
 
         if batch_idx % args.log_interval == 0:
-            print('Reg', reg)
+            # print('Reg', reg)
             print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}'.format(
                 epoch, batch_idx * len(data), len(train_loader)*args.batch_size,
                 100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), eff_nodes, total, eff_paths))
@@ -155,55 +156,55 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     # with torch.cuda.amp.autocast(enabled=enabled):
     #     eff_nodes, eff_paths = measure_node_path(model)
 
-    data = (torch.zeros((1, c, h, w)).float().cuda(), torch.zeros((1, c, h, w)).float().cuda())
-    eff_paths, output = model(data)
-    eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
-    dummies = []
-    num_zeros = []
-    for m in model.modules():
-        if hasattr(m, 'score'):
-            # dummies.append(m.eff_paths)
-            dummies.append(m.dummy)
-            num_zeros.append(m.num_zeros)
-    grad_dummy = torch.autograd.grad(eff_paths, dummies)
-    eff_params = 0
-    eff_kernels = 0
-    eff_nodes = 0
-    total_nodes = 0
-    total_params = 0
-    for i, grad in enumerate(grad_dummy):
-        temp = grad != 0
-        if len(grad.shape) == 4:
-            eff_nodes += (grad.sum(dim=(1,2,3)) != 0).sum()
-            eff_kernels += (grad.sum((2,3)) != 0).sum()
-        else:
-            eff_nodes += (grad.sum(dim=(1)) != 0).sum()
-        
-        eff_params += temp.sum()
-        total_nodes += temp.shape[0]
-        total_params += temp.numel() - num_zeros[i]
-
-    print(f'Eff nodes: {eff_nodes}/{total_nodes}, Eff paths: {eff_paths}, Eff kernels: {eff_kernels}, Eff params: {eff_params}/{total_params}')
-
     # data = (torch.zeros((1, c, h, w)).float().cuda(), torch.zeros((1, c, h, w)).float().cuda())
     # eff_paths, output = model(data)
     # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
     # dummies = []
+    # num_zeros = []
     # for m in model.modules():
     #     if hasattr(m, 'score'):
-    #         dummies.append(m.eff_paths)
+    #         # dummies.append(m.eff_paths)
+    #         dummies.append(m.dummy)
+    #         num_zeros.append(m.num_zeros)
     # grad_dummy = torch.autograd.grad(eff_paths, dummies)
+    # eff_params = 0
+    # eff_kernels = 0
     # eff_nodes = 0
-    # total = 0
-    # for grad in grad_dummy:
+    # total_nodes = 0
+    # total_params = 0
+    # for i, grad in enumerate(grad_dummy):
+    #     temp = grad != 0
     #     if len(grad.shape) == 4:
-    #         temp = grad.norm(2, dim=(0,2,3))
+    #         eff_nodes += (grad.sum(dim=(1,2,3)) != 0).sum()
+    #         eff_kernels += (grad.sum((2,3)) != 0).sum()
     #     else:
-    #         temp = grad.norm(2, dim=(0))
+    #         eff_nodes += (grad.sum(dim=(1)) != 0).sum()
+        
+    #     eff_params += temp.sum()
+    #     total_nodes += temp.shape[0]
+    #     total_params += temp.numel() - num_zeros[i]
 
-    #     eps = (temp == 0)*1e-3
-    #     eff_nodes += torch.sum(temp / (temp + eps))
-    #     total += temp.shape[0]
+    # print(f'Eff nodes: {eff_nodes}/{total_nodes}, Eff paths: {eff_paths}, Eff kernels: {eff_kernels}, Eff params: {eff_params}/{total_params}')
+
+    data = (torch.zeros((1, c, h, w)).float().cuda(), torch.zeros((1, c, h, w)).float().cuda())
+    eff_paths, output = model(data)
+    eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
+    dummies = []
+    for m in model.modules():
+        if hasattr(m, 'eff_paths'):
+            dummies.append(m.eff_paths)
+    grad_dummy = torch.autograd.grad(eff_paths, dummies)
+    eff_nodes = 0
+    total = 0
+    for grad in grad_dummy:
+        if len(grad.shape) == 4:
+            temp = grad.norm(2, dim=(0,2,3))
+        else:
+            temp = grad.norm(2, dim=(0))
+
+        eps = (temp == 0) * 1e-3
+        eff_nodes += torch.sum(temp / (temp + eps))
+        total += temp.shape[0]
 
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {} \n'.format(
         'Training summary' ,
