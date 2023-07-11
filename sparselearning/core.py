@@ -93,7 +93,7 @@ def NPB_linear_forward(self, x):
         self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
         eff_paths, images = x
         max_paths = eff_paths.max()
-        eff_paths = torch.log(F.linear((eff_paths - max_paths).exp(), self.mask, None)+1e-3) + max_paths
+        eff_paths = torch.log(F.linear((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
         out = F.linear(images, self.weight, self.bias)
         self.eff_paths = eff_paths
         return eff_paths, out
@@ -105,7 +105,7 @@ def NPB_conv_forward(self, x):
         self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
         eff_paths, images = x
         max_paths = eff_paths.max()
-        eff_paths = torch.log(self._conv_forward((eff_paths - max_paths).exp(), self.mask, None)+1e-3) + max_paths
+        eff_paths = torch.log(self._conv_forward((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
         out = self._conv_forward(images, self.weight, self.bias)
         self.eff_paths = eff_paths
         return eff_paths, out
