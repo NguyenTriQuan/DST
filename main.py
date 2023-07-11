@@ -108,8 +108,10 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                     grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
                     eff_nodes = 0
                     total = 0
+                    reg = 0
                     for grad in grad_dummy:
                         if len(grad.shape) == 4:
+                            reg += grad.std(dim=(2,3)).sum()
                             temp = grad.norm(2, dim=(0,2,3))
                         else:
                             temp = grad.norm(2, dim=(0))
@@ -118,7 +120,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         eff_nodes += torch.sum(temp / (temp + eps))
                         total += temp.shape[0]
 
-                loss = loss - (args.alpha * eff_nodes + args.beta * eff_paths)
+                loss = loss - (args.alpha * eff_nodes + args.beta * eff_paths) + args.lamb * reg
 
         train_loss += loss.item()
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
@@ -140,6 +142,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         if mask is not None: mask.step()
 
         if batch_idx % args.log_interval == 0:
+            print('Reg', reg)
             print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}'.format(
                 epoch, batch_idx * len(data), len(train_loader)*args.batch_size,
                 100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), eff_nodes, total, eff_paths))
