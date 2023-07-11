@@ -114,7 +114,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                     else:
                         temp = grad.norm(2, dim=(0))
                     # reg += temp.sum()
-                    reg += torch.sum(temp / (temp.detach()+1e-6))
+                    reg += torch.sum(temp / (temp.detach()+1e-3))
                     eff_nodes += (temp != 0).sum()
                     total += temp.shape[0]
                 loss = loss - (args.alpha * reg + args.beta * eff_paths)
