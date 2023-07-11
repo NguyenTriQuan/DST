@@ -121,6 +121,10 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         total += temp.shape[0]
 
                 loss = loss - (args.alpha * eff_nodes + args.beta * eff_paths)
+                print(eff_nodes, eff_paths)
+            else:
+                output = model(data)
+                loss = F.nll_loss(output, target)
 
 
         train_loss += loss.item()

@@ -88,30 +88,6 @@ class NotZero(torch.autograd.Function):
     
 # NPB core #
 
-def measure_node_path(model, grad_dummy):
-    grad_dummy = torch.autograd.grad(eff_paths, dummy, retain_graph=True, create_graph=True)
-    eff_nodes = 0
-    i = 0
-    for m in model.modules():
-        if hasattr(m, 'score'):
-            # grad_dummy, = torch.autograd.grad(eff_paths, m.dummy, retain_graph=True, create_graph=True)
-            if len(m.weight.shape) == 4:
-                # temp = NotZeros.apply(m.weight.grad).sum((1,2,3))
-                # eff_nodes += torch.clamp(temp, max=1).sum()
-                eff_nodes += torch.sign(grad_dummy[i].abs().sum((1,2,3))).sum()
-            else:
-                # temp = NotZeros.apply(m.weight.grad).sum((1))
-                # eff_nodes += torch.clamp(temp, max=1).sum()
-                # print(m.weight.grad.abs().max())
-                eff_nodes += torch.sign(grad_dummy[i].abs().sum((1))).sum()
-            # eff_nodes += m.eff_nodes
-            # m.eff_nodes = None
-            i += 1
-        m.measure = False
-    # print(eff_nodes, eff_paths)
-    # eff_nodes = eff_nodes.log()
-    return eff_nodes, eff_paths
-
 def NPB_linear_forward(self, x):
     if self.training:
         self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
@@ -186,20 +162,22 @@ def NPB_register(model, args):
     # model.apply(lambda m: setattr(m, "measure", False))
     for m in model.modules():
         if isinstance(m, nn.Linear):
-            m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
             # m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()
-            nn.init.kaiming_normal_(m.score)
             setattr(m, 'original_forward', m.forward)
+            m.num_zeros = 0
             if args.method == 'score_npb':
+                m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
+                nn.init.kaiming_normal_(m.score)
                 setattr(m, 'forward', score_NPB_linear_forward.__get__(m, m.__class__))
             elif args.method == 'npb':
                 setattr(m, 'forward', NPB_linear_forward.__get__(m, m.__class__))
         elif isinstance(m, nn.Conv2d):
-            m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
             # m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()
-            nn.init.kaiming_normal_(m.score)
             setattr(m, 'original_forward', m.forward)
+            m.num_zeros = 0
             if args.method == 'score_npb':
+                m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
+                nn.init.kaiming_normal_(m.score)
                 setattr(m, 'forward', score_NPB_conv_forward.__get__(m, m.__class__))
             elif args.method == 'npb':
                 setattr(m, 'forward', NPB_conv_forward.__get__(m, m.__class__))
@@ -364,7 +342,7 @@ class Masking(object):
                 self.name2zeros[name] = mask.numel() - self.name2nonzeros[name]
                 total_nonzero += density_dict[name] * mask.numel()
                 for n, m in self.modules[-1].named_modules():
-                    if hasattr(m, 'score'):
+                    if hasattr(m, 'num_zeros'):
                         if n in name:
                             m.num_zeros = math.ceil((1-density_dict[name])*m.weight.numel())
                             m.mask = TopK.apply(m.score.abs(), m.num_zeros).detach()
