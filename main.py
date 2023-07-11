@@ -116,9 +116,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 #     eps = (temp == 0) * 1e-3
                 #     eff_nodes += torch.sum(temp / (temp + eps))
                 #     total += temp.shape[0]
-                loss = loss - (args.alpha * eff_nodes + args.beta * eff_paths)
 
-                # loss = loss - args.beta * eff_paths
+                loss = loss - (args.alpha * eff_nodes + args.beta * eff_paths)
 
         train_loss += loss.item()
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
