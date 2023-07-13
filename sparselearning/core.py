@@ -120,10 +120,10 @@ def NPB_conv_forward(self, x):
         # return eff_paths, out
 
         self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
-        cum_max_paths, eff_paths, images = x
+        cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
         eff_paths = self._conv_forward((eff_paths / max_paths), self.mask, None)
-        out = self._conv_forward(images, self.weight, self.bias)
+        out = self._conv_forward(inp, self.weight, self.bias)
         self.eff_paths = eff_paths
         cum_max_paths += max_paths.log()
         return cum_max_paths, eff_paths, out
@@ -141,10 +141,10 @@ def score_NPB_linear_forward(self, x):
         # return eff_paths, out
 
         self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-        cum_max_paths, eff_paths, images = x
+        cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
         eff_paths = F.linear((eff_paths / max_paths), self.mask, None)
-        out = F.linear(images, self.mask * self.weight, self.bias)
+        out = F.linear(inp, self.mask * self.weight, self.bias)
         self.eff_paths = eff_paths
         cum_max_paths += max_paths.log()
         return cum_max_paths, eff_paths, out
@@ -162,10 +162,10 @@ def score_NPB_conv_forward(self, x):
         # return eff_paths, out
 
         self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-        cum_max_paths, eff_paths, images = x
+        cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
         eff_paths = self._conv_forward((eff_paths / max_paths), self.mask, None)
-        out = self._conv_forward(images, self.weight * self.mask, self.bias)
+        out = self._conv_forward(inp, self.weight * self.mask, self.bias)
         self.eff_paths = eff_paths
         cum_max_paths += max_paths.log()
         return cum_max_paths, eff_paths, out

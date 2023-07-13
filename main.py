@@ -194,7 +194,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     # print(f'Eff nodes: {eff_nodes}/{total_nodes}, Eff paths: {eff_paths}, Eff kernels: {eff_kernels}, Eff params: {eff_params}/{total_params}')
 
     if 'npb' in args.method:
-        data = (0, ones, data)
+        data = (0, ones, ones)
         cum_max_paths, eff_paths, output = model(data)
         # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
         eff_paths = eff_paths.sum().log() + cum_max_paths
