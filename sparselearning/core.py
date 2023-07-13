@@ -182,12 +182,11 @@ def NPB_residual_forward(self, x, y):
     if self.measure:
         return x[0], x[1] + y[1],  x[2] + y[2]
     if self.training:
+        print(x[0], y[0], (x[1]-y[1]).abs().sum())
         if x[0] > y[0]:
-            print(x[0], x[0]-y[0])
             return x[0], x[1] + (y[1] / (x[0]-y[0]).exp()), x[2] + y[2]
             # return x[0], x[1], x[2] + y[2]
         else:
-            print(y[0], y[0]-x[0])
             return y[0], (x[1] / (y[0]-x[0]).exp()) + y[1], x[2] + y[2]
             # return y[0], y[1], x[2] + y[2]
     else:
