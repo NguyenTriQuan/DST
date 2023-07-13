@@ -88,7 +88,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
     eff_nodes, total, eff_paths = 0, 0, 0
     _, c, h, w = data.shape
-    ones = torch.ones((1, c, h, w)).float().cuda()
+    ones = torch.ones((1, 3, 32, 32)).float().cuda()
     for batch_idx, (data, target) in enumerate(train_loader):
 
         data, target = data.to(device), target.to(device)
