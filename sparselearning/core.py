@@ -190,7 +190,11 @@ def NPB_stable_forward(self, x):
 
 def NPB_residual_forward(self, x, y):
     if self.training:
-        return torch.logsumexp(torch.stack([x[0], y[0]], dim=0), dim=0), x[1] + y[1]
+        # return torch.logsumexp(torch.stack([x[0], y[0]], dim=0), dim=0), x[1] + y[1]
+        if x[0] > y[0]:
+            return x[0], x[1] + y[1] / (x[0]-y[0]).exp(), x[2] + y[2]
+        else:
+            return y[0], x[1]  / (y[0]-x[0]).exp() + y[1], x[2] + y[2]
     else:
         return self.original_forward(x, y)
 
