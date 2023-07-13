@@ -121,7 +121,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
                         # eps = (temp == 0)
                         # eff_nodes += torch.sum(temp / (temp + eps))
-                        eff_nodes += torch.sum((temp != 0) - temp.detach() + temp)
+                        eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
                         total += temp.shape[0]
 
                 loss = loss - (args.alpha * eff_nodes + args.beta * eff_paths)
