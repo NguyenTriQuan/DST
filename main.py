@@ -121,7 +121,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
                         # eps = (temp == 0)
                         # eff_nodes += torch.sum(temp / (temp + eps))
-                        eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
+                        eff_nodes += torch.sum((temp != 0).float() - temp.detach() + temp)
                         total += temp.shape[0]
 
                 loss = loss - (args.alpha * eff_nodes + args.beta * eff_paths)
@@ -195,13 +195,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     # print(f'Eff nodes: {eff_nodes}/{total_nodes}, Eff paths: {eff_paths}, Eff kernels: {eff_kernels}, Eff params: {eff_params}/{total_params}')
 
     if 'npb' in args.method:
-        model.apply(lambda m: setattr(m, "measure", True))
-        model.double()
-        data = (0, ones.double(), ones.double())
+        data = (0, ones, ones)
         cum_max_paths, eff_paths, output = model(data)
-        # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
-        # eff_paths = eff_paths.sum().log() + cum_max_paths
-        eff_paths = eff_paths.sum().log()
+        eff_paths = eff_paths.sum().log() + cum_max_paths
         dummies = []
         for m in model.modules():
             if hasattr(m, 'eff_paths'):
@@ -215,11 +211,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
             else:
                 temp = grad.norm(2, dim=(0))
 
-            eps = (temp == 0)
-            eff_nodes += torch.sum(temp / (temp + eps))
+            eff_nodes += torch.sum(temp != 0)
             total += temp.shape[0]
-        model.apply(lambda m: setattr(m, "measure", False))
-        model.float()
 
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {} \n'.format(
         'Training summary' ,

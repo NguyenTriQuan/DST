@@ -86,18 +86,18 @@ class NotZero(torch.autograd.Function):
         # send the gradient g straight-through on the backward pass.
         return g, None
     
+def topK(scores, k):
+    # Get the supermask by sorting the scores and using the top k%
+    val, idx = scores.flatten().sort()
+    return (scores >= val[k]).float() + scores - scores.detach()
+
 # NPB core #
 
 def NPB_linear_forward(self, x):
-    if self.measure:
-        cum_max_paths, eff_paths, inp = x
-        eff_paths = F.linear(eff_paths, self.mask.double(), None)
-        out = F.linear(inp, self.weight, self.bias)
-        self.eff_paths = eff_paths
-        return cum_max_paths, eff_paths, out
     
     if self.training:
-        self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
+        # self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
+        self.mask = topK(self.weight.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
         eff_paths = F.linear(eff_paths / max_paths, self.mask, None)
@@ -108,15 +108,10 @@ def NPB_linear_forward(self, x):
         return F.linear(x, self.weight, self.bias)
     
 def NPB_conv_forward(self, x):
-    if self.measure:
-        cum_max_paths, eff_paths, inp = x
-        eff_paths = self._conv_forward(eff_paths, self.mask.double(), None)
-        out = self._conv_forward(inp, self.weight, self.bias)
-        self.eff_paths = eff_paths
-        return cum_max_paths, eff_paths, out
     
     if self.training:
-        self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
+        # self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
+        self.mask = topK(self.weight.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
         eff_paths = self._conv_forward(eff_paths / max_paths, self.mask, None)
@@ -127,14 +122,10 @@ def NPB_conv_forward(self, x):
         return self._conv_forward(x, self.weight, self.bias)
     
 def score_NPB_linear_forward(self, x):
-    if self.measure:
-        cum_max_paths, eff_paths, inp = x
-        eff_paths = F.linear(eff_paths, self.mask.double(), None)
-        out = F.linear(inp, self.mask * self.weight, self.bias)
-        self.eff_paths = eff_paths
-        return cum_max_paths, eff_paths, out
+    
     if self.training:
-        self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        # self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        self.mask = topK(self.score.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
         eff_paths = F.linear(eff_paths / max_paths, self.mask, None)
@@ -145,14 +136,10 @@ def score_NPB_linear_forward(self, x):
         return F.linear(x, self.mask * self.weight, self.bias)
     
 def score_NPB_conv_forward(self, x):
-    if self.measure:
-        cum_max_paths, eff_paths, inp = x
-        eff_paths = self._conv_forward(eff_paths, self.mask.double(), None)
-        out = self._conv_forward(inp, self.weight * self.mask, self.bias)
-        self.eff_paths = eff_paths
-        return cum_max_paths, eff_paths, out
+    
     if self.training:
-        self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        # self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        self.mask = topK(self.score.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
         eff_paths = self._conv_forward(eff_paths / max_paths, self.mask, None)
@@ -175,8 +162,7 @@ def NPB_stable_forward(self, x):
         return self.original_forward(x)
 
 def NPB_residual_forward(self, x, y):
-    if self.measure:
-        return x[0], x[1] + y[1],  x[2] + y[2]
+    
     if self.training:
         if x[0] > y[0]:
             return x[0], x[1] + (y[1] / (x[0]-y[0]).exp()), x[2] + y[2]
