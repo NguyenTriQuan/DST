@@ -180,11 +180,12 @@ def NPB_dummy_forward(self, x):
     
 def NPB_stable_forward(self, x):
     if self.training:
-        eff_paths, images = x
-        max_paths = eff_paths.max()
-        eff_paths = torch.log(self.original_forward((eff_paths - max_paths).exp())) + max_paths
-        out = self.original_forward(images)
-        return eff_paths, out
+        # eff_paths, images = x
+        # max_paths = eff_paths.max()
+        # eff_paths = torch.log(self.original_forward((eff_paths - max_paths).exp())) + max_paths
+        # out = self.original_forward(images)
+        # return eff_paths, out
+        return x[0], self.original_forward(x[1]), self.original_forward(x[2])
     else:
         return self.original_forward(x)
 
@@ -224,19 +225,12 @@ def NPB_register(model, args):
         elif isinstance(m, Residual):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_residual_forward.__get__(m, m.__class__))
-        elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.ReLU) or isinstance(m, nn.Dropout) or isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.Flatten):
+        elif isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.Flatten):
+            setattr(m, 'original_forward', m.forward)
+            setattr(m, 'forward', NPB_stable_forward.__get__(m, m.__class__))
+        elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.ReLU) or isinstance(m, nn.Dropout):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
-
-        # elif isinstance(m, Residual):
-        #     setattr(m, 'original_forward', m.forward)
-        #     setattr(m, 'forward', NPB_residual_forward.__get__(m, m.__class__))
-        # elif isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.Flatten):
-        #     setattr(m, 'original_forward', m.forward)
-        #     setattr(m, 'forward', NPB_stable_forward.__get__(m, m.__class__))
-        # elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.ReLU) or isinstance(m, nn.Dropout):
-        #     setattr(m, 'original_forward', m.forward)
-        #     setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
     
 
             
