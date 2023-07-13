@@ -87,6 +87,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         scaler = torch.cuda.amp.GradScaler(enabled=True)
 
     eff_nodes, total, eff_paths = 0, 0, 0
+    _, c, h, w = data.shape
+    ones = torch.ones((1, c, h, w)).float().cuda()
     for batch_idx, (data, target) in enumerate(train_loader):
 
         data, target = data.to(device), target.to(device)
@@ -95,7 +97,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         with torch.cuda.amp.autocast(enabled=enabled):
             if 'npb' in args.method:
                 _, c, h, w = data.shape
-                data = (torch.zeros((1, c, h, w)).float().cuda(), data)
+                data = (0, ones, data)
                 cum_max_paths, eff_paths, output = model(data)
                 loss = F.nll_loss(output, target)
                 # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
@@ -193,7 +195,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     # print(f'Eff nodes: {eff_nodes}/{total_nodes}, Eff paths: {eff_paths}, Eff kernels: {eff_kernels}, Eff params: {eff_params}/{total_params}')
 
     if 'npb' in args.method:
-        data = (0, torch.ones((1, c, h, w)).float().cuda(), torch.zeros((1, c, h, w)).float().cuda())
+        data = (0, ones, data)
         cum_max_paths, eff_paths, output = model(data)
         # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
         eff_paths = eff_paths.sum().log() + cum_max_paths
