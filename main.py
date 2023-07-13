@@ -96,9 +96,10 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
             if 'npb' in args.method:
                 _, c, h, w = data.shape
                 data = (torch.zeros((1, c, h, w)).float().cuda(), data)
-                eff_paths, output = model(data)
+                cum_max_paths, eff_paths, output = model(data)
                 loss = F.nll_loss(output, target)
-                eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
+                # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
+                eff_paths = eff_paths.sum().log() + cum_max_paths
                 
                 if args.alpha > 0:
                     dummies = []
@@ -193,8 +194,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
     if 'npb' in args.method:
         data = (torch.zeros((1, c, h, w)).float().cuda(), torch.zeros((1, c, h, w)).float().cuda())
-        eff_paths, output = model(data)
-        eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
+        cum_max_paths, eff_paths, output = model(data)
+        # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
+        eff_paths = eff_paths.sum().log() + cum_max_paths
         dummies = []
         for m in model.modules():
             if hasattr(m, 'eff_paths'):

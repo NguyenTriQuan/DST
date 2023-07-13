@@ -90,55 +90,91 @@ class NotZero(torch.autograd.Function):
 
 def NPB_linear_forward(self, x):
     if self.training:
+        # self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
+        # eff_paths, images = x
+        # max_paths = eff_paths.max()
+        # eff_paths = torch.log(F.linear((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
+        # out = F.linear(images, self.weight, self.bias)
+        # self.eff_paths = eff_paths
+        # return eff_paths, out
+
         self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
-        eff_paths, images = x
+        cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
-        eff_paths = torch.log(F.linear((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
-        out = F.linear(images, self.weight, self.bias)
+        eff_paths = F.linear((eff_paths / max_paths), self.mask, None)
+        out = F.linear(inp, self.weight, self.bias)
         self.eff_paths = eff_paths
-        return eff_paths, out
+        cum_max_paths += max_paths.log()
+        return cum_max_paths, eff_paths, out
     else:
         return F.linear(x, self.weight, self.bias)
     
 def NPB_conv_forward(self, x):
     if self.training:
+        # self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
+        # eff_paths, images = x
+        # max_paths = eff_paths.max()
+        # eff_paths = torch.log(self._conv_forward((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
+        # out = self._conv_forward(images, self.weight, self.bias)
+        # self.eff_paths = eff_paths
+        # return eff_paths, out
+
         self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
-        eff_paths, images = x
+        cum_max_paths, eff_paths, images = x
         max_paths = eff_paths.max()
-        eff_paths = torch.log(self._conv_forward((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
+        eff_paths = self._conv_forward((eff_paths / max_paths), self.mask, None)
         out = self._conv_forward(images, self.weight, self.bias)
         self.eff_paths = eff_paths
-        return eff_paths, out
+        cum_max_paths += max_paths.log()
+        return cum_max_paths, eff_paths, out
     else:
         return self._conv_forward(x, self.weight, self.bias)
     
 def score_NPB_linear_forward(self, x):
     if self.training:
+        # self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        # eff_paths, images = x
+        # max_paths = eff_paths.max()
+        # eff_paths = torch.log(F.linear((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
+        # out = F.linear(images, self.mask * self.weight, self.bias)
+        # self.eff_paths = eff_paths
+        # return eff_paths, out
+
         self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-        eff_paths, images = x
+        cum_max_paths, eff_paths, images = x
         max_paths = eff_paths.max()
-        eff_paths = torch.log(F.linear((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
+        eff_paths = F.linear((eff_paths / max_paths), self.mask, None)
         out = F.linear(images, self.mask * self.weight, self.bias)
         self.eff_paths = eff_paths
-        return eff_paths, out
+        cum_max_paths += max_paths.log()
+        return cum_max_paths, eff_paths, out
     else:
         return F.linear(x, self.mask * self.weight, self.bias)
     
 def score_NPB_conv_forward(self, x):
     if self.training:
+        # self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        # eff_paths, images = x
+        # max_paths = eff_paths.max()
+        # eff_paths = torch.log(self._conv_forward((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
+        # out = self._conv_forward(images, self.weight * self.mask, self.bias)
+        # self.eff_paths = eff_paths
+        # return eff_paths, out
+
         self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-        eff_paths, images = x
+        cum_max_paths, eff_paths, images = x
         max_paths = eff_paths.max()
-        eff_paths = torch.log(self._conv_forward((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
+        eff_paths = self._conv_forward((eff_paths / max_paths), self.mask, None)
         out = self._conv_forward(images, self.weight * self.mask, self.bias)
         self.eff_paths = eff_paths
-        return eff_paths, out
+        cum_max_paths += max_paths.log()
+        return cum_max_paths, eff_paths, out
     else:
         return self._conv_forward(x, self.weight * self.mask, self.bias)
     
 def NPB_dummy_forward(self, x):
     if self.training:
-        return x[0], self.original_forward(x[1])
+        return x[0], x[1], self.original_forward(x[2])
     else:
         return self.original_forward(x)
     
@@ -181,15 +217,19 @@ def NPB_register(model, args):
                 setattr(m, 'forward', score_NPB_conv_forward.__get__(m, m.__class__))
             elif args.method == 'npb':
                 setattr(m, 'forward', NPB_conv_forward.__get__(m, m.__class__))
-        elif isinstance(m, Residual):
-            setattr(m, 'original_forward', m.forward)
-            setattr(m, 'forward', NPB_residual_forward.__get__(m, m.__class__))
-        elif isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.Flatten):
-            setattr(m, 'original_forward', m.forward)
-            setattr(m, 'forward', NPB_stable_forward.__get__(m, m.__class__))
-        elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.ReLU) or isinstance(m, nn.Dropout):
+        elif isinstance(m, Residual) or isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.ReLU) or isinstance(m, nn.Dropout) or isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.Flatten):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
+
+        # elif isinstance(m, Residual):
+        #     setattr(m, 'original_forward', m.forward)
+        #     setattr(m, 'forward', NPB_residual_forward.__get__(m, m.__class__))
+        # elif isinstance(m, nn.MaxPool2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.Flatten):
+        #     setattr(m, 'original_forward', m.forward)
+        #     setattr(m, 'forward', NPB_stable_forward.__get__(m, m.__class__))
+        # elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.ReLU) or isinstance(m, nn.Dropout):
+        #     setattr(m, 'original_forward', m.forward)
+        #     setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
     
 
             
