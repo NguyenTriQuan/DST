@@ -103,8 +103,7 @@ def NPB_linear_forward(self, x):
         eff_paths = F.linear(eff_paths / max_paths, self.mask, None)
         out = F.linear(inp, self.weight, self.bias)
         self.eff_paths = eff_paths
-        cum_max_paths += max_paths.log()
-        return cum_max_paths, eff_paths, out
+        return cum_max_paths + max_paths.log(), eff_paths, out
     else:
         return F.linear(x, self.weight, self.bias)
     
@@ -123,8 +122,7 @@ def NPB_conv_forward(self, x):
         eff_paths = self._conv_forward(eff_paths / max_paths, self.mask, None)
         out = self._conv_forward(inp, self.weight, self.bias)
         self.eff_paths = eff_paths
-        cum_max_paths += max_paths.log()
-        return cum_max_paths, eff_paths, out
+        return cum_max_paths + max_paths.log(), eff_paths, out
     else:
         return self._conv_forward(x, self.weight, self.bias)
     
@@ -142,8 +140,7 @@ def score_NPB_linear_forward(self, x):
         eff_paths = F.linear(eff_paths / max_paths, self.mask, None)
         out = F.linear(inp, self.mask * self.weight, self.bias)
         self.eff_paths = eff_paths
-        cum_max_paths += max_paths.log()
-        return cum_max_paths, eff_paths, out
+        return cum_max_paths + max_paths.log(), eff_paths, out
     else:
         return F.linear(x, self.mask * self.weight, self.bias)
     
@@ -161,8 +158,7 @@ def score_NPB_conv_forward(self, x):
         eff_paths = self._conv_forward(eff_paths / max_paths, self.mask, None)
         out = self._conv_forward(inp, self.weight * self.mask, self.bias)
         self.eff_paths = eff_paths
-        cum_max_paths += max_paths.log()
-        return cum_max_paths, eff_paths, out
+        return cum_max_paths + max_paths.log(), eff_paths, out
     else:
         return self._conv_forward(x, self.weight * self.mask, self.bias)
     
@@ -180,7 +176,7 @@ def NPB_stable_forward(self, x):
 
 def NPB_residual_forward(self, x, y):
     if self.measure:
-        print(x[1].sum().log(), y[1].sum().log())
+        # print(x[1].sum().log(), y[1].sum().log())
         return x[0], x[1] + y[1],  x[2] + y[2]
     if self.training:
         # return x[0], x[1] + y[1], x[2] + y[2]
