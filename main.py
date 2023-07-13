@@ -195,7 +195,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
     if 'npb' in args.method:
         model.apply(lambda m: setattr(m, "measure", True))
-        data = (0, ones, ones)
+        model.double()
+        data = (0, ones.double(), ones.double())
         cum_max_paths, eff_paths, output = model(data)
         # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
         # eff_paths = eff_paths.sum().log() + cum_max_paths
@@ -216,6 +217,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
             eps = (temp == 0)
             eff_nodes += torch.sum(temp / (temp + eps))
             total += temp.shape[0]
+        model.apply(lambda m: setattr(m, "measure", False))
+        model.float()
 
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {} \n'.format(
         'Training summary' ,
