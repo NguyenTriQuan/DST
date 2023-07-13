@@ -89,19 +89,18 @@ class NotZero(torch.autograd.Function):
 # NPB core #
 
 def NPB_linear_forward(self, x):
+    if self.measure:
+        cum_max_paths, eff_paths, inp = x
+        eff_paths = F.linear(eff_paths, self.mask, None)
+        out = F.linear(inp, self.weight, self.bias)
+        self.eff_paths = eff_paths
+        return cum_max_paths, eff_paths, out
+    
     if self.training:
-        # self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
-        # eff_paths, images = x
-        # max_paths = eff_paths.max()
-        # eff_paths = torch.log(F.linear((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
-        # out = F.linear(images, self.weight, self.bias)
-        # self.eff_paths = eff_paths
-        # return eff_paths, out
-
         self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
-        eff_paths = F.linear((eff_paths / max_paths), self.mask, None)
+        eff_paths = F.linear(eff_paths / max_paths, self.mask, None)
         out = F.linear(inp, self.weight, self.bias)
         self.eff_paths = eff_paths
         cum_max_paths += max_paths.log()
@@ -110,19 +109,18 @@ def NPB_linear_forward(self, x):
         return F.linear(x, self.weight, self.bias)
     
 def NPB_conv_forward(self, x):
+    if self.measure:
+        cum_max_paths, eff_paths, inp = x
+        eff_paths = self._conv_forward(eff_paths, self.mask, None)
+        out = self._conv_forward(inp, self.weight, self.bias)
+        self.eff_paths = eff_paths
+        return cum_max_paths, eff_paths, out
+    
     if self.training:
-        # self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
-        # eff_paths, images = x
-        # max_paths = eff_paths.max()
-        # eff_paths = torch.log(self._conv_forward((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
-        # out = self._conv_forward(images, self.weight, self.bias)
-        # self.eff_paths = eff_paths
-        # return eff_paths, out
-
         self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
-        eff_paths = self._conv_forward((eff_paths / max_paths), self.mask, None)
+        eff_paths = self._conv_forward(eff_paths / max_paths, self.mask, None)
         out = self._conv_forward(inp, self.weight, self.bias)
         self.eff_paths = eff_paths
         cum_max_paths += max_paths.log()
@@ -131,19 +129,17 @@ def NPB_conv_forward(self, x):
         return self._conv_forward(x, self.weight, self.bias)
     
 def score_NPB_linear_forward(self, x):
+    if self.measure:
+        cum_max_paths, eff_paths, inp = x
+        eff_paths = F.linear(eff_paths, self.mask, None)
+        out = F.linear(inp, self.mask * self.weight, self.bias)
+        self.eff_paths = eff_paths
+        return cum_max_paths, eff_paths, out
     if self.training:
-        # self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-        # eff_paths, images = x
-        # max_paths = eff_paths.max()
-        # eff_paths = torch.log(F.linear((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
-        # out = F.linear(images, self.mask * self.weight, self.bias)
-        # self.eff_paths = eff_paths
-        # return eff_paths, out
-
         self.mask = TopK.apply(self.score.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
-        eff_paths = F.linear((eff_paths / max_paths), self.mask, None)
+        eff_paths = F.linear(eff_paths / max_paths, self.mask, None)
         out = F.linear(inp, self.mask * self.weight, self.bias)
         self.eff_paths = eff_paths
         cum_max_paths += max_paths.log()
@@ -152,19 +148,17 @@ def score_NPB_linear_forward(self, x):
         return F.linear(x, self.mask * self.weight, self.bias)
     
 def score_NPB_conv_forward(self, x):
+    if self.measure:
+        cum_max_paths, eff_paths, inp = x
+        eff_paths = self._conv_forward(eff_paths, self.mask, None)
+        out = self._conv_forward(inp, self.weight * self.mask, self.bias)
+        self.eff_paths = eff_paths
+        return cum_max_paths, eff_paths, out
     if self.training:
-        # self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-        # eff_paths, images = x
-        # max_paths = eff_paths.max()
-        # eff_paths = torch.log(self._conv_forward((eff_paths - max_paths).exp(), self.mask, None)+1) + max_paths
-        # out = self._conv_forward(images, self.weight * self.mask, self.bias)
-        # self.eff_paths = eff_paths
-        # return eff_paths, out
-
         self.mask = TopK.apply(self.score.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
-        eff_paths = self._conv_forward((eff_paths / max_paths), self.mask, None)
+        eff_paths = self._conv_forward(eff_paths / max_paths, self.mask, None)
         out = self._conv_forward(inp, self.weight * self.mask, self.bias)
         self.eff_paths = eff_paths
         cum_max_paths += max_paths.log()
@@ -180,18 +174,14 @@ def NPB_dummy_forward(self, x):
     
 def NPB_stable_forward(self, x):
     if self.training:
-        # eff_paths, images = x
-        # max_paths = eff_paths.max()
-        # eff_paths = torch.log(self.original_forward((eff_paths - max_paths).exp())) + max_paths
-        # out = self.original_forward(images)
-        # return eff_paths, out
         return x[0], self.original_forward(x[1]), self.original_forward(x[2])
     else:
         return self.original_forward(x)
 
 def NPB_residual_forward(self, x, y):
+    if self.measure:
+        return x[0], x[1] + y[1],  x[2] + y[2]
     if self.training:
-        # return torch.logsumexp(torch.stack([x[0], y[0]], dim=0), dim=0), x[1] + y[1]
         if x[0] > y[0]:
             return x[0], x[1] + y[1] / (x[0]-y[0]).exp(), x[2] + y[2]
         else:
@@ -200,7 +190,7 @@ def NPB_residual_forward(self, x, y):
         return self.original_forward(x, y)
 
 def NPB_register(model, args):
-    # model.apply(lambda m: setattr(m, "measure", False))
+    model.apply(lambda m: setattr(m, "measure", False))
     for m in model.modules():
         if isinstance(m, nn.Linear):
             # m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()
