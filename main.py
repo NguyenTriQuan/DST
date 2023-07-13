@@ -119,8 +119,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         else:
                             temp = grad.norm(2, dim=(0))
 
-                        eps = (temp == 0)
-                        eff_nodes += torch.sum(temp / (temp + eps))
+                        # eps = (temp == 0)
+                        # eff_nodes += torch.sum(temp / (temp + eps))
+                        eff_nodes += torch.sum((temp != 0) - temp.detach() + temp)
                         total += temp.shape[0]
 
                 loss = loss - (args.alpha * eff_nodes + args.beta * eff_paths)
@@ -152,7 +153,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         if batch_idx % args.log_interval == 0:
             # print('Reg', reg)
             print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}'.format(
-                epoch, batch_idx * len(data), len(train_loader)*args.batch_size,
+                epoch, batch_idx * len(data[-1]), len(train_loader)*args.batch_size,
                 100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), eff_nodes, total, eff_paths))
 
 
