@@ -91,7 +91,7 @@ class NotZero(torch.autograd.Function):
 def NPB_linear_forward(self, x):
     if self.measure:
         cum_max_paths, eff_paths, inp = x
-        eff_paths = F.linear(eff_paths, self.mask, None)
+        eff_paths = F.linear(eff_paths, self.mask.double(), None)
         out = F.linear(inp, self.weight, self.bias)
         self.eff_paths = eff_paths
         return cum_max_paths, eff_paths, out
@@ -111,7 +111,7 @@ def NPB_linear_forward(self, x):
 def NPB_conv_forward(self, x):
     if self.measure:
         cum_max_paths, eff_paths, inp = x
-        eff_paths = self._conv_forward(eff_paths, self.mask, None)
+        eff_paths = self._conv_forward(eff_paths, self.mask.double(), None)
         out = self._conv_forward(inp, self.weight, self.bias)
         self.eff_paths = eff_paths
         return cum_max_paths, eff_paths, out
@@ -131,7 +131,7 @@ def NPB_conv_forward(self, x):
 def score_NPB_linear_forward(self, x):
     if self.measure:
         cum_max_paths, eff_paths, inp = x
-        eff_paths = F.linear(eff_paths, self.mask, None)
+        eff_paths = F.linear(eff_paths, self.mask.double(), None)
         out = F.linear(inp, self.mask * self.weight, self.bias)
         self.eff_paths = eff_paths
         return cum_max_paths, eff_paths, out
@@ -150,7 +150,7 @@ def score_NPB_linear_forward(self, x):
 def score_NPB_conv_forward(self, x):
     if self.measure:
         cum_max_paths, eff_paths, inp = x
-        eff_paths = self._conv_forward(eff_paths, self.mask, None)
+        eff_paths = self._conv_forward(eff_paths, self.mask.double(), None)
         out = self._conv_forward(inp, self.weight * self.mask, self.bias)
         self.eff_paths = eff_paths
         return cum_max_paths, eff_paths, out
