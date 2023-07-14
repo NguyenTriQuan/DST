@@ -121,6 +121,7 @@ def score_NPB_linear_forward(self, x):
     
     if self.training:
         self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        print(self.mask)
         # self.mask = topK(self.score.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
