@@ -21,6 +21,11 @@ def add_sparse_args(parser):
     parser.add_argument('--density', type=float, default=0.05, help='The density of the overall sparse network.')
     parser.add_argument('--update_frequency', type=int, default=100, metavar='N', help='how many iterations to train between parameter exploration')
     parser.add_argument('--decay-schedule', type=str, default='cosine', help='The decay schedule for the pruning rate. Default: cosine. Choose from: cosine, linear.')
+    parser.add_argument('--method', type=str, default='')
+    parser.add_argument('--alpha', type=float, default=0.5, required=False)
+    parser.add_argument('--beta', type=float, default=0.5, required=False)
+    parser.add_argument('--lamb', type=float, default=0.001, required=False)
+    parser.add_argument('--tau', type=float, default=1, required=False)
 class CosineDecay(object):
     def __init__(self, death_rate, T_max, eta_min=0.005, last_epoch=-1):
         self.sgd = optim.SGD(torch.nn.ParameterList([torch.nn.Parameter(torch.zeros(1))]), lr=death_rate)
@@ -51,35 +56,27 @@ class TopK(torch.autograd.Function):
     @staticmethod
     def forward(ctx, scores, k):
         # Get the supermask by sorting the scores and using the top k%
-        out = scores.clone()
-        _, idx = scores.flatten().sort()
-        # j = int((1 - k) * scores.numel())
+        # out = scores.clone()
+        # _, idx = scores.flatten().sort()
+        # # j = int((1 - k) * scores.numel())
 
-        # flat_out and out access the same memory.
-        flat_out = out.flatten()
-        flat_out[idx[:k]] = 0.0
-        flat_out[idx[k:]] = 1.0
-        return out
+        # # flat_out and out access the same memory.
+        # flat_out = out.flatten()
+        # flat_out[idx[:k]] = 0.0
+        # flat_out[idx[k:]] = 1.0
+
+        k_val = scores.view(-1).kthvalue(k).values.item()
+        return torch.where(scores < k_val, 0, 1)
 
     @staticmethod
     def backward(ctx, g):
         # send the gradient g straight-through on the backward pass.
         return g, None
     
-class NotZero(torch.autograd.Function):
+class NonZero(torch.autograd.Function):
     @staticmethod
     def forward(ctx, scores):
-        # Get the supermask by sorting the scores and using the top k%
-        out = scores.clone()
-        # _, idx = scores.flatten().sort()
-        # j = int((1 - k) * scores.numel())
-
-        # flat_out and out access the same memory.
-        # flat_out = out.flatten()
-        mask = out == 0
-        out[mask] = 0.0
-        out[~mask] = 1.0
-        return out
+        return torch.where(scores == 0, 0, 1)
 
     @staticmethod
     def backward(ctx, g):
@@ -96,8 +93,8 @@ def topK(scores, k):
 def NPB_linear_forward(self, x):
     
     if self.training:
-        # self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
-        self.mask = topK(self.weight.abs(), self.num_zeros)
+        self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
+        # self.mask = topK(self.weight.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
         eff_paths = F.linear(eff_paths / max_paths, self.mask, None)
@@ -110,8 +107,8 @@ def NPB_linear_forward(self, x):
 def NPB_conv_forward(self, x):
     
     if self.training:
-        # self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
-        self.mask = topK(self.weight.abs(), self.num_zeros)
+        self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
+        # self.mask = topK(self.weight.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
         eff_paths = self._conv_forward(eff_paths / max_paths, self.mask, None)
@@ -124,8 +121,8 @@ def NPB_conv_forward(self, x):
 def score_NPB_linear_forward(self, x):
     
     if self.training:
-        # self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-        self.mask = topK(self.score.abs(), self.num_zeros)
+        self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        # self.mask = topK(self.score.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
         eff_paths = F.linear(eff_paths / max_paths, self.mask, None)
@@ -138,8 +135,8 @@ def score_NPB_linear_forward(self, x):
 def score_NPB_conv_forward(self, x):
     
     if self.training:
-        # self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-        self.mask = topK(self.score.abs(), self.num_zeros)
+        self.mask = TopK.apply(self.score.abs(), self.num_zeros)
+        # self.mask = topK(self.score.abs(), self.num_zeros)
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
         eff_paths = self._conv_forward(eff_paths / max_paths, self.mask, None)
@@ -172,7 +169,7 @@ def NPB_residual_forward(self, x, y):
         return self.original_forward(x, y)
 
 def NPB_register(model, args):
-    model.apply(lambda m: setattr(m, "measure", False))
+    # model.apply(lambda m: setattr(m, "measure", False))
     for m in model.modules():
         if isinstance(m, nn.Linear):
             # m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()

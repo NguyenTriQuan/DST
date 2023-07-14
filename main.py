@@ -13,7 +13,7 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 
 import sparselearning
-from sparselearning.core import Masking, CosineDecay, LinearDecay, NotZero
+from sparselearning.core import Masking, CosineDecay, LinearDecay, NonZero
 from sparselearning.models import AlexNet, VGG16, LeNet_300_100, LeNet_5_Caffe, WideResNet, MLP_CIFAR10, ResNet34, ResNet18
 from sparselearning.utils import get_mnist_dataloaders, get_cifar10_dataloaders, get_cifar100_dataloaders
 import torchvision
@@ -121,6 +121,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
                         # eps = (temp == 0)
                         # eff_nodes += torch.sum(temp / (temp + eps))
+                        temp = F.tanh(temp / args.tau)
+                        print(temp)
                         eff_nodes += torch.sum((temp != 0).float() - temp.detach() + temp)
                         total += temp.shape[0]
 
@@ -280,10 +282,6 @@ def main():
     parser.add_argument('--resume', type=str)
     parser.add_argument('--start-epoch', type=int, default=1)
     parser.add_argument('--model', type=str, default='')
-    parser.add_argument('--method', type=str, default='')
-    parser.add_argument('--alpha', type=float, default=0.5, required=False)
-    parser.add_argument('--beta', type=float, default=0.5, required=False)
-    parser.add_argument('--lamb', type=float, default=0.001, required=False)
     parser.add_argument('--l2', type=float, default=5.0e-4)
     parser.add_argument('--iters', type=int, default=1, help='How many times the model should be run after each other. Default=1')
     parser.add_argument('--save-features', action='store_true', help='Resumes a saved model and saves its feature data to disk for plotting.')
