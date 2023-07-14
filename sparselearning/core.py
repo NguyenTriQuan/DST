@@ -56,16 +56,18 @@ class TopK(torch.autograd.Function):
     @staticmethod
     def forward(ctx, scores, k):
         # Get the supermask by sorting the scores and using the top k%
-        # out = scores.clone()
-        # _, idx = scores.flatten().sort()
-        # # j = int((1 - k) * scores.numel())
+        out = scores.clone()
+        _, idx = scores.flatten().sort()
+        # j = int((1 - k) * scores.numel())
 
-        # # flat_out and out access the same memory.
-        # flat_out = out.flatten()
-        # flat_out[idx[:k]] = 0.0
-        # flat_out[idx[k:]] = 1.0
-        k_val = scores.view(-1).kthvalue(k+1).values.item()
-        return torch.where(scores < k_val, 0.0, 1.0)
+        # flat_out and out access the same memory.
+        flat_out = out.flatten()
+        flat_out[idx[:k]] = 0.0
+        flat_out[idx[k:]] = 1.0
+        return out
+    
+        # k_val = scores.view(-1).kthvalue(k+1).values.item()
+        # return torch.where(scores < k_val, 0.0, 1.0)
 
     @staticmethod
     def backward(ctx, g):
