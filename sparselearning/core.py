@@ -64,9 +64,8 @@ class TopK(torch.autograd.Function):
         # flat_out = out.flatten()
         # flat_out[idx[:k]] = 0.0
         # flat_out[idx[k:]] = 1.0
-
-        k_val = scores.view(-1).kthvalue(k).values.item()
         print(scores.numel(), k)
+        k_val = scores.view(-1).kthvalue(k).values.item()
         return torch.where(scores < k_val, 0, 1)
 
     @staticmethod
