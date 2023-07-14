@@ -115,9 +115,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         # print(grad.sum(), grad)
                         if len(grad.shape) == 4:
                             # reg += grad.std(dim=(2,3)).sum()
-                            temp = grad.std(dim=(0,2,3), unbiased=False)
+                            temp = grad.norm(2, dim=(0,2,3)) / (grad.shape[0]*grad.shape[2]*grad.shape[3])
                         else:
-                            temp = grad.std(dim=(0), unbiased=False)
+                            temp = grad.norm(2, dim=(0)) / grad.shape[0]
 
                         # eps = (temp == 0)
                         # eff_nodes += torch.sum(temp / (temp + eps))
