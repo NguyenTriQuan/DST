@@ -122,7 +122,6 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         # eps = (temp == 0)
                         # eff_nodes += torch.sum(temp / (temp + eps))
                         temp = F.tanh(temp / args.tau)
-                        print(temp)
                         eff_nodes += torch.sum((temp != 0).float() - temp.detach() + temp)
                         total += temp.shape[0]
 
