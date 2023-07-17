@@ -123,7 +123,7 @@ def NPB_forward(self, x):
         self.mask = self.get_mask()
         cum_max_paths, eff_paths, inp = x
         out = self.base_func(inp, self.get_weight(), self.bias)
-        return 0, 0, out
+        return torch.zeros(1), torch.ones(1), out
     else:
         return self.base_func(x, self.get_weight(), self.bias)
     
