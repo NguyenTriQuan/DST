@@ -107,6 +107,9 @@ def get_weight(self):
 def get_masked_weight(self):
     return self.mask * self.weight
 
+def base_func(self):
+    return F.linear
+
 def NPB_forward(self, x):
     
     if self.training:
@@ -164,7 +167,7 @@ def NPB_register(model, args):
                 setattr(m, 'get_mask', get_mask_by_weight.__get__(m, m.__class__))
 
             if isinstance(m, nn.Linear):
-                setattr(m, 'base_func', F.linear.__get__(m, m.__class__))
+                setattr(m, 'base_func', base_func.__get__(m, m.__class__))
             else:
                 setattr(m, 'base_func', m._conv_forward)
 
