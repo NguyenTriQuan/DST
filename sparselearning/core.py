@@ -91,61 +91,34 @@ def topK(scores, k):
 
 # NPB core #
 
-def NPB_linear_forward(self, x):
+def post_update(self):
+    self.mask = self.get_mask().detach().clone()
+    self.eff_paths = None
+
+def get_mask_by_weight(self):
+    return TopK.apply(self.weight.abs(), self.num_zeros)
+
+def get_mask_by_score(self):
+    return TopK.apply(self.score.abs(), self.num_zeros)
+
+def get_weight(self):
+    return self.weight
+
+def get_masked_weight(self):
+    return self.mask * self.weight
+
+def NPB_forward(self, x):
     
     if self.training:
-        self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
-        # self.mask = topK(self.weight.abs(), self.num_zeros)
+        self.mask = self.get_mask()
         cum_max_paths, eff_paths, inp = x
         max_paths = eff_paths.max()
-        eff_paths = F.linear(eff_paths / max_paths, self.mask, None)
-        out = F.linear(inp, self.weight, self.bias)
+        eff_paths = self.base_func(eff_paths / max_paths, self.mask, None)
+        out = self.base_func(inp, self.get_weight(), self.bias)
         self.eff_paths = eff_paths
         return cum_max_paths + max_paths.log(), eff_paths, out
     else:
-        return F.linear(x, self.weight, self.bias)
-    
-def NPB_conv_forward(self, x):
-    
-    if self.training:
-        self.mask = TopK.apply(self.weight.abs(), self.num_zeros)
-        # self.mask = topK(self.weight.abs(), self.num_zeros)
-        cum_max_paths, eff_paths, inp = x
-        max_paths = eff_paths.max()
-        eff_paths = self._conv_forward(eff_paths / max_paths, self.mask, None)
-        out = self._conv_forward(inp, self.weight, self.bias)
-        self.eff_paths = eff_paths
-        return cum_max_paths + max_paths.log(), eff_paths, out
-    else:
-        return self._conv_forward(x, self.weight, self.bias)
-    
-def score_NPB_linear_forward(self, x):
-    
-    if self.training:
-        self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-        # self.mask = topK(self.score.abs(), self.num_zeros)
-        cum_max_paths, eff_paths, inp = x
-        max_paths = eff_paths.max()
-        eff_paths = F.linear(eff_paths / max_paths, self.mask, None)
-        out = F.linear(inp, self.mask * self.weight, self.bias)
-        self.eff_paths = eff_paths
-        return cum_max_paths + max_paths.log(), eff_paths, out
-    else:
-        return F.linear(x, self.mask * self.weight, self.bias)
-    
-def score_NPB_conv_forward(self, x):
-    
-    if self.training:
-        self.mask = TopK.apply(self.score.abs(), self.num_zeros)
-        # self.mask = topK(self.score.abs(), self.num_zeros)
-        cum_max_paths, eff_paths, inp = x
-        max_paths = eff_paths.max()
-        eff_paths = self._conv_forward(eff_paths / max_paths, self.mask, None)
-        out = self._conv_forward(inp, self.weight * self.mask, self.bias)
-        self.eff_paths = eff_paths
-        return cum_max_paths + max_paths.log(), eff_paths, out
-    else:
-        return self._conv_forward(x, self.weight * self.mask, self.bias)
+        return self.base_func(x, self.get_weight(), self.bias)
     
 def NPB_dummy_forward(self, x):
     if self.training:
@@ -173,28 +146,30 @@ def NPB_register(model, args):
     # model.apply(lambda m: setattr(m, "measure", False))
     NPB_modules = []
     for m in model.modules():
-        if isinstance(m, nn.Linear):
+        if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
             # m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()
             NPB_modules.append(m)
             setattr(m, 'original_forward', m.forward)
+            setattr(m, 'post_update', post_update.__get__(m, m.__class__))
             m.num_zeros = 0
+
             if args.method == 'score_npb':
                 m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
                 nn.init.kaiming_normal_(m.score)
-                setattr(m, 'forward', score_NPB_linear_forward.__get__(m, m.__class__))
+                setattr(m, 'get_weight', get_masked_weight.__get__(m, m.__class__))
+                setattr(m, 'get_mask', get_mask_by_score.__get__(m, m.__class__))
+
             elif args.method == 'npb':
-                setattr(m, 'forward', NPB_linear_forward.__get__(m, m.__class__))
-        elif isinstance(m, nn.Conv2d):
-            # m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()
-            NPB_modules.append(m)
-            setattr(m, 'original_forward', m.forward)
-            m.num_zeros = 0
-            if args.method == 'score_npb':
-                m.score = nn.Parameter(torch.empty_like(m.weight), requires_grad=True).cuda()
-                nn.init.kaiming_normal_(m.score)
-                setattr(m, 'forward', score_NPB_conv_forward.__get__(m, m.__class__))
-            elif args.method == 'npb':
-                setattr(m, 'forward', NPB_conv_forward.__get__(m, m.__class__))
+                setattr(m, 'get_weight', get_weight.__get__(m, m.__class__))
+                setattr(m, 'get_mask', get_mask_by_weight.__get__(m, m.__class__))
+
+            if isinstance(m, nn.Linear):
+                setattr(m, 'base_func', F.linear.__get__(m, m.__class__))
+            else:
+                setattr(m, 'base_func', m._conv_forward)
+
+            setattr(m, 'forward', NPB_forward.__get__(m, m.__class__))
+
         elif isinstance(m, Residual):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_residual_forward.__get__(m, m.__class__))

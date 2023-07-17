@@ -152,7 +152,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         if mask is not None: mask.step()
 
         for m in model.NPB_modules:
-            m.eff_paths = None
+            m.post_update()
+
         if batch_idx % args.log_interval == 0:
             # print('Reg', reg)
             print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}'.format(
@@ -218,7 +219,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
             eff_nodes += torch.sum(temp != 0)
             total += temp.shape[0]
         for m in model.NPB_modules:
-            m.eff_paths = None
+            m.post_update()
 
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {} \n'.format(
         'Training summary' ,
