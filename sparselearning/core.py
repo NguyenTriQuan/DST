@@ -113,13 +113,17 @@ def linear_forward(self, x, weight, bias):
 def NPB_forward(self, x):
     
     if self.training:
+        # self.mask = self.get_mask()
+        # cum_max_paths, eff_paths, inp = x
+        # max_paths = eff_paths.max()
+        # eff_paths = self.base_func(eff_paths / max_paths, self.mask, None)
+        # out = self.base_func(inp, self.get_weight(), self.bias)
+        # self.eff_paths = eff_paths
+        # return cum_max_paths + max_paths.log(), eff_paths, out
         self.mask = self.get_mask()
         cum_max_paths, eff_paths, inp = x
-        max_paths = eff_paths.max()
-        eff_paths = self.base_func(eff_paths / max_paths, self.mask, None)
         out = self.base_func(inp, self.get_weight(), self.bias)
-        self.eff_paths = eff_paths
-        return cum_max_paths + max_paths.log(), eff_paths, out
+        return 0, 0, out
     else:
         return self.base_func(x, self.get_weight(), self.bias)
     
