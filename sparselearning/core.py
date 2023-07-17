@@ -171,9 +171,11 @@ def NPB_residual_forward(self, x, y):
 
 def NPB_register(model, args):
     # model.apply(lambda m: setattr(m, "measure", False))
+    NPB_modules = []
     for m in model.modules():
         if isinstance(m, nn.Linear):
             # m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()
+            NPB_modules.append(m)
             setattr(m, 'original_forward', m.forward)
             m.num_zeros = 0
             if args.method == 'score_npb':
@@ -184,6 +186,7 @@ def NPB_register(model, args):
                 setattr(m, 'forward', NPB_linear_forward.__get__(m, m.__class__))
         elif isinstance(m, nn.Conv2d):
             # m.dummy = torch.ones_like(m.weight, requires_grad=True).cuda()
+            NPB_modules.append(m)
             setattr(m, 'original_forward', m.forward)
             m.num_zeros = 0
             if args.method == 'score_npb':
@@ -201,7 +204,8 @@ def NPB_register(model, args):
         elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.LogSoftmax) or isinstance(m, nn.ReLU) or isinstance(m, nn.Dropout):
             setattr(m, 'original_forward', m.forward)
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
-    
+
+    model.NPB_modules = NPB_modules
 
             
 class Masking(object):
