@@ -95,7 +95,6 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         optimizer.zero_grad()
         with torch.cuda.amp.autocast(enabled=enabled):
             if 'npb' in args.method:
-                _, c, h, w = data.shape
                 data = (0, ones, data)
                 cum_max_paths, eff_paths, output = model(data)
                 loss = F.nll_loss(output, target)
