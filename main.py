@@ -116,6 +116,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
                         # eps = (temp == 0)
                         # eff_nodes += torch.sum(temp / (temp + eps))
+                        temp = F.tanh(temp * 1e5)
                         eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
                         total += temp.shape[0]
 
