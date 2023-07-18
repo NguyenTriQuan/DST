@@ -116,7 +116,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
                         # eps = (temp == 0)
                         # eff_nodes += torch.sum(temp / (temp + eps))
-                        temp = F.tanh(temp * 1e5)
+                        temp = F.tanh(temp * 1e9)
                         eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
                         total += temp.shape[0]
 
@@ -275,6 +275,7 @@ def main():
     parser.add_argument('--data', type=str, default='mnist')
     parser.add_argument('--decay_frequency', type=int, default=25000)
     parser.add_argument('--l1', type=float, default=0.0)
+    parser.add_argument('--lr_drop_rate', type=float, default=0.1)
     parser.add_argument('--fp16', action='store_true', help='Run in fp16 mode.')
     parser.add_argument('--amp', action='store_true', help='torch mix precision.')
     parser.add_argument('--valid_split', type=float, default=0.1)
@@ -363,7 +364,7 @@ def main():
             print('Unknown optimizer: {0}'.format(args.optimizer))
             raise Exception('Unknown optimizer.')
 
-        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[int(args.epochs / 2) * args.multiplier, int(args.epochs * 3 / 4) * args.multiplier], last_epoch=-1)
+        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[int(args.epochs / 2) * args.multiplier, int(args.epochs * 3 / 4) * args.multiplier], gamma=args.lr_drop_rate, last_epoch=-1)
 
 
         if args.resume:
