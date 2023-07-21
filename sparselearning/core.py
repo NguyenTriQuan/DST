@@ -114,7 +114,7 @@ def normalize_weight(model):
                 num_weight = mask.sum((1))
                 mean = m.weight.sum((1)) / num_weight
                 m.weight.data = m.weight.data - mean.view((-1,1))
-                var = (m.weight.data ** 2).sum((1,2,3)) / num_weight
+                var = (m.weight.data ** 2).sum((1)) / num_weight
                 m.weight.data = m.weight.data * m.bound_std / (var+1e-5).sqrt().view((-1,1))
                 m.weight.data[~mask] = 0
 
