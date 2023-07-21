@@ -109,6 +109,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                     eff_nodes = 0
                     total = 0
                     for grad in grad_dummy:
+                        print((grad<0).sum())
                         if len(grad.shape) == 4:
                             temp = grad.norm(2, dim=(0,2,3))
                         else:
@@ -120,7 +121,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
                         total += temp.shape[0]
 
-                loss = loss - (args.alpha * eff_nodes + args.beta * eff_paths)
+                loss = loss - (args.alpha * eff_nodes.log() + args.beta * eff_paths)
                 # # print(eff_nodes, eff_paths)
             else:
                 output = model(data)
