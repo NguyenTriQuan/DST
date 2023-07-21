@@ -102,6 +102,7 @@ def initialize_weight(model):
 def normalize_weight(model):
     with torch.no_grad():
         for m in model.NPB_modules:
+            m.post_update()
             mask = m.weight != 0
             if len(m.weight.shape) == 4:
                 num_weight = mask.sum((1,2,3))
