@@ -13,7 +13,7 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 
 import sparselearning
-from sparselearning.core import Masking, CosineDecay, LinearDecay, NonZero
+from sparselearning.core import Masking, CosineDecay, LinearDecay, NonZero, normalize_weight
 from sparselearning.models import AlexNet, VGG16, LeNet_300_100, LeNet_5_Caffe, WideResNet, MLP_CIFAR10, ResNet34, ResNet18
 from sparselearning.utils import get_mnist_dataloaders, get_cifar10_dataloaders, get_cifar100_dataloaders
 import torchvision
@@ -119,7 +119,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
                         # eps = (temp == 0)
                         # eff_nodes += torch.sum(temp / (temp + eps))
-                        temp = F.tanh(temp * 1e9)
+                        temp = torch.tanh(temp * 1e9)
+                        print(temp)
                         eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
                         total += temp.shape[0]
 
@@ -151,6 +152,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
         for m in model.NPB_modules:
             m.post_update()
+
+        normalize_weight(model)
 
         if batch_idx % args.log_interval == 0:
             # print('Reg', reg)

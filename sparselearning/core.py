@@ -91,6 +91,33 @@ def topK(scores, k):
 
 # NPB core #
 
+def initialize_weight(model):
+    with torch.no_grad():
+        for m in model.NPB_modules:
+            gain = torch.nn.init.calculate_gain('leaky_relu', 0)
+            fan_in = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
+            m.bound_std = gain / math.sqrt(fan_in)
+            torch.nn.init.normal_(m.weight, 0, m.bound_std)
+
+def normalize_weight(model):
+    with torch.no_grad():
+        for m in model.NPB_modules:
+            mask = m.weight != 0
+            if len(m.weight.shape) == 4:
+                num_weight = mask.sum((1,2,3))
+                mean = m.weight.sum((1,2,3)) / num_weight
+                m.weight.data = m.weight.data - mean.view((-1,1,1,1))
+                var = (m.weight.data ** 2).sum((1,2,3)) / num_weight
+                m.weight.data = m.weight.data * m.bound_std / (var+1e-5).sqrt().view((-1,1,1,1))
+                m.weight.data[~mask] = 0
+            else:
+                num_weight = mask.sum((1))
+                mean = m.weight.sum((1)) / num_weight
+                m.weight.data = m.weight.data - mean.view((-1,1))
+                var = (m.weight.data ** 2).sum((1,2,3)) / num_weight
+                m.weight.data = m.weight.data * m.bound_std / (var+1e-5).sqrt().view((-1,1))
+                m.weight.data[~mask] = 0
+
 def post_update(self):
     self.mask = self.get_mask().detach().clone()
     self.eff_paths = None
@@ -184,6 +211,7 @@ def NPB_register(model, args):
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
 
     model.NPB_modules = NPB_modules
+    initialize_weight(model)
 
             
 class Masking(object):
