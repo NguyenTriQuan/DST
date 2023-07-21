@@ -104,12 +104,14 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 if args.alpha > 0:
                     dummies = []
                     for m in model.NPB_modules:
+                        print(m.weight.norm(2), end=' ')
                         dummies.append(m.eff_paths)
+                    print()
                     grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
                     eff_nodes = 0
                     total = 0
                     for grad in grad_dummy:
-                        print((grad<0).sum())
+                        # print((grad<0).sum())
                         if len(grad.shape) == 4:
                             temp = grad.norm(2, dim=(0,2,3))
                         else:
