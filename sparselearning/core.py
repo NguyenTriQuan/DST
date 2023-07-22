@@ -105,19 +105,16 @@ def normalize_weight(model):
             m.post_update()
             mask = m.weight != 0
             if len(m.weight.shape) == 4:
-                num_weight = mask.sum((1,2,3))
-                mean = m.weight.sum((1,2,3)) / num_weight
-                m.weight.data = m.weight.data - mean.view((-1,1,1,1))
-                var = (m.weight.data ** 2).sum((1,2,3)) / num_weight
-                m.weight.data = m.weight.data * m.bound_std / (var+1e-5).sqrt().view((-1,1,1,1))
-                m.weight.data[~mask] = 0
+                view = (-1,1,1,1)
+                dim = (1,2,3)
             else:
-                num_weight = mask.sum((1))
-                mean = m.weight.sum((1)) / num_weight
-                m.weight.data = m.weight.data - mean.view((-1,1))
-                var = (m.weight.data ** 2).sum((1)) / num_weight
-                m.weight.data = m.weight.data * m.bound_std / (var+1e-5).sqrt().view((-1,1))
-                m.weight.data[~mask] = 0
+                view = (-1,1)
+                dim = (1)
+            num_weight = mask.sum(dim)
+            mean = m.weight.sum(dim) / num_weight
+            var = ((m.weight.data - mean.view(view)) ** 2).sum(dim) / num_weight
+            m.weight.data = m.weight.data * m.bound_std / (var+1e-5).sqrt().view(view)
+            m.weight.data[~mask] = 0
 
 def post_update(self):
     self.mask = self.get_mask().detach().clone()
