@@ -152,7 +152,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         # for m in model.NPB_modules:
         #     m.post_update()
 
-        normalize_weight(model)
+        # normalize_weight(model)
 
         if batch_idx % args.log_interval == 0:
             # print('Reg', reg)
