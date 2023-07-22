@@ -209,7 +209,7 @@ def NPB_register(model, args):
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
 
     model.NPB_modules = NPB_modules
-    initialize_weight(model)
+    # initialize_weight(model)
 
             
 class Masking(object):
