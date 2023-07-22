@@ -102,7 +102,6 @@ def initialize_weight(model):
 def normalize_weight(model):
     with torch.no_grad():
         for m in model.NPB_modules:
-            m.post_update()
             mask = m.weight != 0
             if len(m.weight.shape) == 4:
                 view = (-1,1,1,1)
@@ -115,6 +114,7 @@ def normalize_weight(model):
             var = ((m.weight.data - mean.view(view)) ** 2).sum(dim) / num_weight
             m.weight.data = m.weight.data * m.bound_std / (var+1e-5).sqrt().view(view)
             m.weight.data[~mask] = 0
+            m.post_update()
 
 def post_update(self):
     self.mask = self.get_mask().detach().clone()
