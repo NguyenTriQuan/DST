@@ -94,7 +94,7 @@ def topK(scores, k):
 def initialize_weight(model):
     with torch.no_grad():
         for m in model.NPB_modules:
-            gain = torch.nn.init.calculate_gain('leaky_relu', 0)
+            gain = torch.nn.init.calculate_gain('leaky_relu', math.sqrt(5))
             fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
             m.bound_std = gain / math.sqrt(fan_in)
             torch.nn.init.normal_(m.weight, 0, m.bound_std)
@@ -209,7 +209,7 @@ def NPB_register(model, args):
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
 
     model.NPB_modules = NPB_modules
-    # initialize_weight(model)
+    initialize_weight(model)
 
             
 class Masking(object):
