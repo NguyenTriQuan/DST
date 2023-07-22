@@ -104,9 +104,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 if args.alpha > 0:
                     dummies = []
                     for m in model.NPB_modules:
-                        # print(m.weight.norm(2).item(), end=' ')
+                        print(m.weight.norm(2).item(), end=' ')
                         dummies.append(m.eff_paths)
-                    # print()
+                    print()
                     grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
                     eff_nodes = 0
                     total = 0
