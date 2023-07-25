@@ -126,7 +126,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
                 # loss = loss - (args.alpha * torch.log(eff_nodes) + args.beta * eff_paths)
                 reg = (args.alpha * torch.log(eff_nodes) + args.beta * eff_paths)
-                print(norm.item())
+                # print(norm.item())
                 # # print(eff_nodes, eff_paths)
             else:
                 output = model(data)
