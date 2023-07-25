@@ -92,7 +92,7 @@ def reparameterization_update(model, reg_grads, lr):
             grad_v = (param.grad * g.view(view)) * (g.view(view) ** 2 - v ** 2) / g.view(view) ** 3
             g.add_(-lr*grad_g)
             v.add_(-lr*grad_v)
-            param.data.copy_(g * v / v.norm(2))
+            param.data.copy_(g.view(view) * v / v.norm(2))
             i += 1
         else:
             param.data.add_(-lr*param.grad)
