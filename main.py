@@ -161,7 +161,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
             # print('Reg', reg)
             print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}, Norm: {}'.format(
                 epoch, batch_idx * len(data[-1]), len(train_loader)*args.batch_size,
-                100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), int(eff_nodes), total, round(eff_paths, 2), round(norm, 2)))
+                100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), int(eff_nodes.item()), total, round(eff_paths.item(), 2), round(norm.item(), 2)))
 
 
     # training summary

@@ -83,8 +83,7 @@ def reparameterization_update(model, reg_grads, lr):
         if 'weight' in n and len(param.shape) > 1:
             g, v = param.data.norm(2), param.data
             grad_g = torch.sum(param.grad * v) / g
-            grad_v = (param.grad * g - reg_grads[i]) * (g ** 2 - v ** 2) / g ** 3
-            print(grad_v, grad_g)
+            grad_v = (param.grad * g) * (g ** 2 - v ** 2) / g ** 3
             g.add_(-lr*grad_g)
             v.add_(-lr*grad_v)
             param.data.copy_(g * v / v.norm(2))
