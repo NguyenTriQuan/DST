@@ -13,7 +13,7 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 
 import sparselearning
-from sparselearning.core import Masking, CosineDecay, LinearDecay, NonZero, normalize_weight
+from sparselearning.core import Masking, CosineDecay, LinearDecay, normalize_weight, reparameterization_update
 from sparselearning.models import AlexNet, VGG16, LeNet_300_100, LeNet_5_Caffe, WideResNet, MLP_CIFAR10, ResNet34, ResNet18
 from sparselearning.utils import get_mnist_dataloaders, get_cifar10_dataloaders, get_cifar100_dataloaders
 import torchvision
@@ -100,11 +100,12 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 loss = F.nll_loss(output, target)
                 # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
                 eff_paths = eff_paths.sum().log() + cum_max_paths
-                
+                norm = 0
                 if args.alpha > 0:
                     dummies = []
                     for m in model.NPB_modules:
                         # print(m.weight.norm(2).item(), end=' ')
+                        norm += m.weight.norm(2).log().item()
                         dummies.append(m.eff_paths)
                     # print()
                     grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
@@ -123,7 +124,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
                         total += temp.shape[0]
 
-                loss = loss - (args.alpha * torch.log(eff_nodes) + args.beta * eff_paths)
+                # loss = loss - (args.alpha * torch.log(eff_nodes) + args.beta * eff_paths)
+                reg = (args.alpha * torch.log(eff_nodes) + args.beta * eff_paths)
                 # # print(eff_nodes, eff_paths)
             else:
                 output = model(data)
@@ -141,24 +143,25 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         #     loss.backward()
         if args.amp:
             scaler.scale(loss).backward()
-            scaler.step(optimizer)
+            # scaler.step(optimizer)
             scaler.update()
         else:
             loss.backward()
-            optimizer.step()
+            # optimizer.step()
+
+        reg_grads = torch.autograd.grad(reg, model.NPB_params)
+        reparameterization_update(model, reg_grads, args.lr)
+
 
         if mask is not None: mask.step()
 
-        # for m in model.NPB_modules:
-        #     m.post_update()
-
-        normalize_weight(model)
+        # normalize_weight(model)
 
         if batch_idx % args.log_interval == 0:
             # print('Reg', reg)
-            print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}'.format(
+            print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}, Norm: {}'.format(
                 epoch, batch_idx * len(data[-1]), len(train_loader)*args.batch_size,
-                100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), eff_nodes, total, eff_paths))
+                100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), eff_nodes, total, eff_paths, norm))
 
 
     # training summary
@@ -217,14 +220,14 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
             eff_nodes += torch.sum(temp != 0)
             total += temp.shape[0]
-        for m in model.NPB_modules:
-            m.post_update()
+        # for m in model.NPB_modules:
+        #     m.post_update()
 
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {} \n'.format(
         'Training summary' ,
         train_loss, correct, n, train_acc, eff_nodes, total, eff_paths))
     if args.wandb:
-        wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch, 'eff nodes': eff_nodes, 'eff paths': eff_paths})
+        wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch, 'eff nodes': eff_nodes, 'eff paths': eff_paths, 'norm': norm})
 
 def evaluate(args, model, device, test_loader, is_test_set=False):
     model.eval()

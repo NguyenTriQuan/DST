@@ -74,22 +74,23 @@ class TopK(torch.autograd.Function):
         # send the gradient g straight-through on the backward pass.
         return g, None
     
-class NonZero(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, scores):
-        return torch.where(scores == 0, 0, 1)
-
-    @staticmethod
-    def backward(ctx, g):
-        # send the gradient g straight-through on the backward pass.
-        return g, None
-    
-def topK(scores, k):
-    # Get the supermask by sorting the scores and using the top k%
-    val, idx = scores.flatten().sort()
-    return (scores >= val[k]).float() + scores - scores.detach()
 
 # NPB core #
+
+def reparameterization_update(model, reg_grads, lr):
+    i = 0
+    for n, param in model.named_parameters():
+        if 'weight' in n and len(param.shape) > 1:
+            g, v = param.data.norm(2), param.data
+            grad_g = torch.sum(param.grad * v) / g
+            grad_v = (param.grad * g - reg_grads[i]) * (g ** 2 - v ** 2) / g ** 3
+            g.add_(-lr*grad_g)
+            v.add_(-lr*grad_v)
+            param.copy_(g * v / v.norm(2))
+            i += 1
+        else:
+            param.add_(-lr*param.grad)
+    
 
 def initialize_weight(model):
     with torch.no_grad():
@@ -210,7 +211,8 @@ def NPB_register(model, args):
             setattr(m, 'forward', NPB_dummy_forward.__get__(m, m.__class__))
 
     model.NPB_modules = NPB_modules
-    initialize_weight(model)
+    model.NPB_params = [m.weight for m in NPB_modules]
+    # initialize_weight(model)
 
             
 class Masking(object):
