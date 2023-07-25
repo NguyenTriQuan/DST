@@ -86,10 +86,10 @@ def reparameterization_update(model, reg_grads, lr):
             grad_v = (param.grad * g - reg_grads[i]) * (g ** 2 - v ** 2) / g ** 3
             g.add_(-lr*grad_g)
             v.add_(-lr*grad_v)
-            param.copy_(g * v / v.norm(2))
+            param.data.copy_(g * v / v.norm(2))
             i += 1
         else:
-            param.add_(-lr*param.grad)
+            param.data.add_(-lr*param.grad)
     
 
 def initialize_weight(model):
