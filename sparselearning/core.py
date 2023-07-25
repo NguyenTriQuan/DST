@@ -89,8 +89,8 @@ def reparameterization_update(model, reg_grads, lr):
                 dim = (1)
             g, v = param.data.norm(2, dim=dim), param.data.clone()
             grad_g = torch.sum(param.grad * v, dim=dim) / g
-            grad_v = (param.grad * g.view(view)) * (g.view(view) ** 2 - v ** 2) / g.view(view) ** 3
-            print(grad_g)
+            # grad_v = (param.grad * g.view(view)) * (g.view(view) ** 2 - v ** 2) / g.view(view) ** 3
+            grad_v = param.grad - (g * grad_g).view(view) * v / g ** 2
             g = g - lr*grad_g
             v = v - lr*grad_v
             param.data.copy_(g.view(view) * v / v.norm(2, dim=dim).view(view))
