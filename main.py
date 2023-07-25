@@ -105,7 +105,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                     dummies = []
                     for m in model.NPB_modules:
                         # print(m.weight.norm(2).item(), end=' ')
-                        norm += m.weight.norm(2).log().item()
+                        norm += m.weight.norm(2).log()
                         dummies.append(m.eff_paths)
                     # print()
                     grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
