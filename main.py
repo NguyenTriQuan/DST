@@ -13,7 +13,7 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 
 import sparselearning
-from sparselearning.core import Masking, CosineDecay, LinearDecay, normalize_weight, reparameterization_update
+from sparselearning.core import Masking, CosineDecay, LinearDecay, normalize_weight, reparameterization_update, post_update
 from sparselearning.models import AlexNet, VGG16, LeNet_300_100, LeNet_5_Caffe, WideResNet, MLP_CIFAR10, ResNet34, ResNet18
 from sparselearning.utils import get_mnist_dataloaders, get_cifar10_dataloaders, get_cifar100_dataloaders
 import torchvision
@@ -154,6 +154,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         # reg_grads = torch.autograd.grad(reg, model.NPB_params)
         # reparameterization_update(model, reg_grads, args.lr)
 
+        post_update(model)
 
         if mask is not None: mask.step()
 
@@ -222,8 +223,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
             eff_nodes += torch.sum(temp != 0)
             total += temp.shape[0]
-        # for m in model.NPB_modules:
-        #     m.post_update()
+        post_update(model)
 
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {} \n'.format(
         'Training summary' ,
