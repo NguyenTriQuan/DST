@@ -138,7 +138,7 @@ def get_mask_by_score(self):
     return TopK.apply(self.score.abs(), self.num_zeros)
 
 def get_weight(self):
-    return self.weight
+    return self.g * self.weight / self.weight.norm(2, dim=self.dim)
 
 def get_masked_weight(self):
     return self.mask * self.weight
@@ -203,8 +203,12 @@ def NPB_register(model, args):
                 setattr(m, 'get_mask', get_mask_by_weight.__get__(m, m.__class__))
 
             if isinstance(m, nn.Linear):
+                m.g = nn.Parameter(m.weight.norm(2, dim=1).detach(), requires_grad=True).cuda().view(-1, 1)
+                m.dim = (1)
                 setattr(m, 'base_func', linear_forward.__get__(m, m.__class__))
             else:
+                m.g = nn.Parameter(m.weight.norm(2, dim=(1,2,3)).detach(), requires_grad=True).cuda().view(-1, 1, 1, 1)
+                m.dim = (1,2,3)
                 setattr(m, 'base_func', m._conv_forward)
 
             setattr(m, 'forward', NPB_forward.__get__(m, m.__class__))

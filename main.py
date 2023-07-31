@@ -144,14 +144,14 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         #     loss.backward()
         if args.amp:
             scaler.scale(loss).backward()
-            # scaler.step(optimizer)
+            scaler.step(optimizer)
             scaler.update()
         else:
             loss.backward()
-            # optimizer.step()
+            optimizer.step()
 
-        reg_grads = torch.autograd.grad(reg, model.NPB_params)
-        reparameterization_update(model, reg_grads, args.lr)
+        # reg_grads = torch.autograd.grad(reg, model.NPB_params)
+        # reparameterization_update(model, reg_grads, args.lr)
 
 
         if mask is not None: mask.step()
@@ -429,7 +429,7 @@ def main():
             lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[int(args.epochs / 2) * args.multiplier, int(args.epochs * 3 / 4) * args.multiplier], last_epoch=-1)
             mask.optimizer = optimizer
 
-
+        print(model.named_parameters().keys())
         for epoch in range(1, args.epochs*args.multiplier + 1):
             t0 = time.time()
             train(args, model, device, train_loader, optimizer, epoch, mask)
