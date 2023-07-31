@@ -138,7 +138,7 @@ def get_mask_by_score(self):
     return TopK.apply(self.score.abs(), self.num_zeros)
 
 def get_weight(self):
-    return self.g * self.weight / self.weight.norm(2, dim=self.dim)
+    return self.g * self.weight / self.weight.norm(2, dim=self.dim, keepdim=True)
 
 def get_masked_weight(self):
     return self.mask * self.weight
