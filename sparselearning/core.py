@@ -131,6 +131,7 @@ def post_update(model):
     for m in model.NPB_modules:
         m.mask = m.get_mask().detach().clone()
         m.eff_paths = None
+        m.g.data = F.softplus(m.g.data)
         # m.weight.data = m.g * m.weight.data / m.weight.data.norm(2)
 
 def get_mask_by_weight(self):
