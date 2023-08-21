@@ -100,6 +100,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 loss = F.nll_loss(output, target)
                 # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
                 eff_paths = eff_paths.sum().log() + cum_max_paths
+                loss = loss - args.beta * eff_paths
                 norm = 0
                 if args.alpha > 0:
                     dummies = []
@@ -125,7 +126,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                         eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
                         total += temp.shape[0]
 
-                loss = loss - (args.alpha * torch.log(eff_nodes) + args.beta * eff_paths)
+                    loss = loss - args.alpha * torch.log(eff_nodes)
                 # reg = (args.alpha * torch.log(eff_nodes) + args.beta * eff_paths)
                 # print(norm.item())
                 # # print(eff_nodes, eff_paths)
