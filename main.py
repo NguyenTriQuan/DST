@@ -101,15 +101,10 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
                 # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
                 eff_paths = eff_paths.sum().log() + cum_max_paths
                 loss = loss - args.beta * eff_paths
-                norm = 0
                 if args.alpha > 0:
                     dummies = []
                     for m in model.NPB_modules:
-                        # print(m.weight.norm(2).item(), end=' ')
-                        # norm += m.weight.norm(2).log()
-                        norm += m.g.log()
                         dummies.append(m.eff_paths)
-                    # print()
                     grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
                     eff_nodes = 0
                     total = 0
@@ -163,9 +158,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
         if batch_idx % args.log_interval == 0:
             # print('Reg', reg)
-            print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}, Norm: {}'.format(
+            print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}'.format(
                 epoch, batch_idx * len(data[-1]), len(train_loader)*args.batch_size,
-                100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), int(eff_nodes), total, round(eff_paths.item(), 2), round(norm.item(), 2)))
+                100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), int(eff_nodes), total, round(eff_paths.item(), 2)))
 
 
     # training summary
@@ -211,8 +206,10 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         cum_max_paths, eff_paths, output = model(data)
         eff_paths = eff_paths.sum().log() + cum_max_paths
         dummies = []
+        norm = 0
         for m in model.NPB_modules:
             dummies.append(m.eff_paths)
+            norm += m.g.log()
         grad_dummy = torch.autograd.grad(eff_paths, dummies)
         eff_nodes = 0
         total = 0
@@ -226,9 +223,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
             total += temp.shape[0]
         post_update(model)
 
-    print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {} \n'.format(
+    print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}, Norm: {} \n'.format(
         'Training summary' ,
-        train_loss, correct, n, train_acc, eff_nodes, total, eff_paths))
+        train_loss, correct, n, train_acc, int(eff_nodes), total, round(eff_paths, 2), round(norm, 2)))
     if args.wandb:
         wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch, 'eff nodes': eff_nodes, 'eff paths': eff_paths, 'norm': norm})
 
