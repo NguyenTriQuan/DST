@@ -225,7 +225,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
     print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}, Norm: {} \n'.format(
         'Training summary' ,
-        train_loss, correct, n, train_acc, int(eff_nodes), total, round(eff_paths, 2), round(norm, 2)))
+        train_loss, correct, n, train_acc, int(eff_nodes), total, round(eff_paths.item(), 2), round(norm.item(), 2)))
     if args.wandb:
         wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch, 'eff nodes': eff_nodes, 'eff paths': eff_paths, 'norm': norm})
 
