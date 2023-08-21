@@ -441,6 +441,8 @@ def main():
             lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[int(args.epochs / 2) * args.multiplier, int(args.epochs * 3 / 4) * args.multiplier], last_epoch=-1)
             mask.optimizer = optimizer
 
+        for n,p in model.named_parameters():
+            print(n, p.shape)
         for epoch in range(1, args.epochs*args.multiplier + 1):
             t0 = time.time()
             train(args, model, device, train_loader, optimizer, epoch, mask)
