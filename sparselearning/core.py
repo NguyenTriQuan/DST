@@ -131,7 +131,7 @@ def post_update(model):
     for m in model.NPB_modules:
         m.mask = m.get_mask().detach().clone()
         m.eff_paths = None
-        m.weight.data = m.g * m.weight.data / m.weight.data.norm(2)
+        # m.weight.data = m.g * m.weight.data / m.weight.data.norm(2)
 
 def get_mask_by_weight(self):
     return TopK.apply(self.weight.abs(), self.num_zeros)
@@ -140,8 +140,8 @@ def get_mask_by_score(self):
     return TopK.apply(self.score.abs(), self.num_zeros)
 
 def get_weight(self):
-    return self.weight
-    # return self.g * self.weight / self.weight.norm(2)
+    # return self.weight
+    return self.g * self.weight / self.weight.norm(2)
 
 def get_masked_weight(self):
     return self.mask * self.weight
@@ -202,10 +202,10 @@ def NPB_register(model, args):
                 setattr(m, 'get_mask', get_mask_by_score.__get__(m, m.__class__))
 
             elif args.method == 'npb':
+                m.g = nn.Parameter(m.weight.data.norm(2).detach()).cuda()
                 setattr(m, 'get_weight', get_weight.__get__(m, m.__class__))
                 setattr(m, 'get_mask', get_mask_by_weight.__get__(m, m.__class__))
 
-            setattr(m, 'g', m.weight.data.norm(2).detach())
             if isinstance(m, nn.Linear):
                 setattr(m, 'base_func', linear_forward.__get__(m, m.__class__))
             else:
