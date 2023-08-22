@@ -139,11 +139,12 @@ def NPB_objective(model):
     eff_nodes = 0
     for grad in grad_dummy:
         if len(grad.shape) == 4:
-            temp = grad.norm(2, dim=(0,2,3))
+            temp = grad.abs().sum(dim=(0,2,3))
         else:
-            temp = grad.norm(2, dim=(0))
+            temp = grad.abs().sum(dim=(0))
 
-        temp = torch.tanh(temp * 10)
+        C = temp.max().detach()
+        temp = torch.tanh(temp * C * 2)
         print(temp)
         eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
 
