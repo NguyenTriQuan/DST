@@ -145,7 +145,8 @@ def NPB_objective(model):
 
         temp = torch.tanh(temp * 1e9)
         eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
-
+        
+    print(f'eff nodes: {eff_nodes}, eff paths: {eff_paths}')
     return eff_paths, eff_nodes.log()
 
 def post_update(model):
@@ -467,7 +468,6 @@ class Masking(object):
                         loss = self.args.alpha * eff_nodes + self.args.beta * eff_paths
                         loss.backward()
                         self.modules[-1].apply(lambda m: setattr(m, "npb", False))
-                        print(f'eff nodes: {eff_nodes}, eff paths: {eff_paths}')
                         if self.args.wandb:
                             wandb.log({'eff nodes': eff_nodes, 'eff paths': eff_paths})
 
