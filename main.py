@@ -158,9 +158,9 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
         if batch_idx % args.log_interval == 0:
             # print('Reg', reg)
-            print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}'.format(
+            print_and_log('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}/{} ({:.3f}%)'.format(
                 epoch, batch_idx * len(data[-1]), len(train_loader)*args.batch_size,
-                100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n), int(eff_nodes), total, round(eff_paths.item(), 2)))
+                100. * batch_idx / len(train_loader), loss.item(), correct, n, 100. * correct / float(n)))
 
 
     # training summary
