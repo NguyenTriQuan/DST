@@ -145,7 +145,7 @@ def NPB_objective(model):
 
         C = temp.max().detach()
         temp = torch.tanh(temp / C * 2)
-        print(temp)
+        print(temp.max())
         eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
 
     print(f'eff nodes: {eff_nodes}, eff paths: {eff_paths}')
