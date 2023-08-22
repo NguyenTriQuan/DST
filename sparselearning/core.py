@@ -621,6 +621,9 @@ class Masking(object):
                 elif self.growth_mode == 'gradient':
                     new_mask = self.gradient_growth(name, new_mask, weight)
 
+                elif self.growth_mode == 'NPB':
+                    new_mask = self.NPB_growth(name, new_mask, weight)
+
                 new_nonzero = new_mask.sum().item()
 
                 # exchanging masks
@@ -638,7 +641,7 @@ class Masking(object):
         if num_remove == 0.0: return weight.data != 0.0
         num_zeros = self.name2zeros[name]
 
-        score = weight.grad.data.abs() + weight.data.abs()
+        score = weight.grad.data.clone().abs() + weight.data.abs()
         x, idx = torch.sort(score.view(-1))
         n = idx.shape[0]
 
@@ -759,7 +762,15 @@ class Masking(object):
 
         return new_mask
 
+    def NPB_growth(self, name, new_mask, weight):
+        total_regrowth = self.num_remove[name]
+        grad = weight.grad.data.clone().abs()
+        grad = grad*(new_mask==0).float()
 
+        y, idx = torch.sort(torch.abs(grad).flatten(), descending=True)
+        new_mask.data.view(-1)[idx[:total_regrowth]] = 1.0
+
+        return new_mask
 
     def momentum_neuron_growth(self, name, new_mask, weight):
         total_regrowth = self.num_remove[name]
