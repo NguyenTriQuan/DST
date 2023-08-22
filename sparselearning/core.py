@@ -127,6 +127,27 @@ def normalize_weight(model):
             m.weight.data[~mask] = 0
             m.post_update()
 
+def NPB_objective(model):
+    ones = torch.ones((1, 3, 32, 32)).float().cuda()
+    data = (0, ones)
+    cum_max_paths, eff_paths = model(data)
+    eff_paths = eff_paths.sum().log() + cum_max_paths
+    dummies = []
+    for m in model.NPB_modules:
+        dummies.append(m.eff_paths)
+    grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
+    eff_nodes = 0
+    for grad in grad_dummy:
+        if len(grad.shape) == 4:
+            temp = grad.norm(2, dim=(0,2,3))
+        else:
+            temp = grad.norm(2, dim=(0))
+
+        temp = torch.tanh(temp * 1e9)
+        eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
+
+    return eff_paths, eff_nodes.log()
+
 def post_update(model):
     for m in model.NPB_modules:
         m.mask = m.get_mask().detach().clone()
@@ -141,8 +162,8 @@ def get_mask_by_score(self):
     return TopK.apply(self.score.abs(), self.num_zeros)
 
 def get_weight(self):
-    # return self.weight
-    return self.g * self.weight / self.weight.norm(2)
+    return self.weight
+    # return self.g * self.weight / self.weight.norm(2)
 
 def get_masked_weight(self):
     return self.mask * self.weight
@@ -152,41 +173,63 @@ def linear_forward(self, x, weight, bias):
 
 def NPB_forward(self, x):
     
-    if self.training:
-        self.mask = self.get_mask()
-        cum_max_paths, eff_paths, inp = x
+    # if self.training:
+    #     self.mask = self.get_mask()
+    #     cum_max_paths, eff_paths, inp = x
+    #     max_paths = eff_paths.max()
+    #     eff_paths = self.base_func(eff_paths / max_paths, self.mask, None)
+    #     out = self.base_func(inp, self.get_weight(), self.bias)
+    #     self.eff_paths = eff_paths
+    #     return cum_max_paths + max_paths.log(), eff_paths, out
+    # else:
+    #     return self.base_func(x, self.get_weight(), self.bias)
+    if self.npb:
+        cum_max_paths, eff_paths = x
         max_paths = eff_paths.max()
-        eff_paths = self.base_func(eff_paths / max_paths, self.mask, None)
-        out = self.base_func(inp, self.get_weight(), self.bias)
+        eff_paths = self.base_func(eff_paths / max_paths, self.get_mask(), None)
         self.eff_paths = eff_paths
-        return cum_max_paths + max_paths.log(), eff_paths, out
+        return cum_max_paths + max_paths.log(), eff_paths
     else:
         return self.base_func(x, self.get_weight(), self.bias)
     
 def NPB_dummy_forward(self, x):
-    if self.training:
-        return x[0], x[1], self.original_forward(x[2])
+    # if self.training:
+    #     return x[0], x[1], self.original_forward(x[2])
+    # else:
+    #     return self.original_forward(x)
+    if self.npb:
+        return x[0], x[1]
     else:
         return self.original_forward(x)
     
 def NPB_stable_forward(self, x):
-    if self.training:
-        return x[0], self.original_forward(x[1]), self.original_forward(x[2])
+    # if self.training:
+    #     return x[0], self.original_forward(x[1]), self.original_forward(x[2])
+    # else:
+    #     return self.original_forward(x)
+    if self.npb:
+        return x[0], self.original_forward(x[1])
     else:
         return self.original_forward(x)
 
 def NPB_residual_forward(self, x, y):
-    
-    if self.training:
+    # if self.training:
+    #     if x[0] > y[0]:
+    #         return x[0], x[1] + (y[1] / (x[0]-y[0]).exp()), x[2] + y[2]
+    #     else:
+    #         return y[0], (x[1] / (y[0]-x[0]).exp()) + y[1], x[2] + y[2]
+    # else:
+    #     return self.original_forward(x, y)
+    if self.npb:
         if x[0] > y[0]:
-            return x[0], x[1] + (y[1] / (x[0]-y[0]).exp()), x[2] + y[2]
+            return x[0], x[1] + (y[1] / (x[0]-y[0]).exp())
         else:
-            return y[0], (x[1] / (y[0]-x[0]).exp()) + y[1], x[2] + y[2]
+            return y[0], (x[1] / (y[0]-x[0]).exp()) + y[1]
     else:
         return self.original_forward(x, y)
 
 def NPB_register(model, args):
-    # model.apply(lambda m: setattr(m, "measure", False))
+    model.apply(lambda m: setattr(m, "npb", False))
     NPB_modules = []
     for m in model.modules():
         if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
@@ -203,7 +246,7 @@ def NPB_register(model, args):
                 setattr(m, 'get_mask', get_mask_by_score.__get__(m, m.__class__))
 
             elif args.method == 'npb':
-                m.g = nn.Parameter(m.weight.data.norm(2).detach()).cuda()
+                # m.g = nn.Parameter(m.weight.data.norm(2).detach()).cuda()
                 setattr(m, 'get_weight', get_weight.__get__(m, m.__class__))
                 setattr(m, 'get_mask', get_mask_by_weight.__get__(m, m.__class__))
 
@@ -417,6 +460,16 @@ class Masking(object):
                 if self.args.method == 'score_npb':
                     self.fired_masks_update()
                 else:
+                    if self.args.method == 'npb':
+                        self.optimizer.zero_grad()
+                        self.modules[-1].apply(lambda m: setattr(m, "npb", True))
+                        eff_paths, eff_nodes = NPB_objective(self.modules[-1])
+                        loss = self.args.alpha * eff_nodes + self.args.beta * eff_paths
+                        loss.backward()
+                        self.modules[-1].apply(lambda m: setattr(m, "npb", False))
+                        if self.args.wandb:
+                            wandb.log({'eff nodes': eff_nodes, 'eff paths': eff_paths})
+
                     self.truncate_weights()
                     _, _ = self.fired_masks_update()
                     self.print_nonzero_counts()
@@ -485,7 +538,6 @@ class Masking(object):
                     self.remove_weight(name)
 
     def apply_mask(self):
-        if self.args.method == 'score_npb': return
         for module in self.modules:
             for name, tensor in module.named_parameters():
                 if name in self.masks:
@@ -528,7 +580,6 @@ class Masking(object):
 
     def truncate_weights(self):
 
-
         for module in self.modules:
             for name, weight in module.named_parameters():
                 if name not in self.masks: continue
@@ -545,10 +596,11 @@ class Masking(object):
                     new_mask = self.taylor_FO(mask, weight, name)
                 elif self.death_mode == 'threshold':
                     new_mask = self.threshold_death(mask, weight, name)
+                elif self.death_mode == 'NPB':
+                    new_mask = self.NPB_death(mask, weight, name)
 
                 self.num_remove[name] = int(self.name2nonzeros[name] - new_mask.sum().item())
                 self.masks[name][:] = new_mask
-
 
         for module in self.modules:
             for name, weight in module.named_parameters():
@@ -577,84 +629,22 @@ class Masking(object):
         self.apply_mask()
 
     '''
-                    NPB
-    '''
-    def score_NPB_reg(self):
-        eff_nodes = 0
-        P_out = torch.zeros(3).float().cuda()
-        eff_nodes_out = torch.ones(3).float().cuda()
-        for m in self.modules[-1].modules():
-            if not hasattr(m, 'score'): continue
-            mask = m.mask
-            if len(mask.shape) == 4:
-                dim_in = (0,2,3)
-                dim_out = (1,2,3)
-                view_in = (1,-1,1,1)
-            else:
-                dim_in = (0)
-                dim_out = (1)
-                view_in = (1,-1)
-
-            if P_out.shape[0] != mask.shape[1]:
-                s = math.ceil(math.sqrt(mask.shape[1]/P_out.shape[0]))
-                P_out = P_out.view(P_out.shape[0], 1, 1).expand(P_out.shape[0], s, s).contiguous().view(-1)
-                eff_nodes_out = eff_nodes_out.view(eff_nodes_out.shape[0], 1, 1).expand(eff_nodes_out.shape[0], s, s).contiguous().view(-1)
-
-            P_out = torch.logsumexp(torch.log(mask+1e-12) + P_out.view(view_in), dim=dim_out)
-            eff_nodes_in = torch.clamp(torch.sum(mask, dim=dim_in) * eff_nodes_out, max=1)
-            eff_nodes += eff_nodes_in.sum()
-            eff_nodes_out = torch.clamp(torch.sum(mask * eff_nodes_out.view(view_in), dim=dim_out), max=1)
-        eff_nodes += eff_nodes_out.sum()
-        P_out = torch.logsumexp(P_out, dim=0)
-        if self.steps % self.prune_every_k_steps == 0:
-            print(f'eff nodes: {eff_nodes}, eff paths: {P_out}')
-            if self.args.wandb:
-                wandb.log({'eff nodes': eff_nodes, 'eff paths': P_out})
-        return self.args.alpha * eff_nodes.log() + (1-self.args.alpha) * P_out
-    
-    def NPB_reg(self):
-        for module in self.modules:
-            eff_nodes = 0
-            P_out = torch.zeros(3).float().cuda()
-            eff_nodes_out = torch.ones(3).float().cuda()
-            for name, tensor in module.named_parameters():
-                if name not in self.masks: continue
-
-                # num_remove = math.ceil(self.death_rate*self.name2nonzeros[name])
-                num_zeros = self.name2zeros[name]
-                # k = math.ceil(num_zeros + num_remove)
-                k = math.ceil(num_zeros)
-                mask = TopK.apply(tensor.abs(), k)
-
-                if len(tensor.shape) == 4:
-                    dim_in = (0,2,3)
-                    dim_out = (1,2,3)
-                    view_in = (1,-1,1,1)
-                else:
-                    dim_in = (0)
-                    dim_out = (1)
-                    view_in = (1,-1)
-
-                if P_out.shape[0] != mask.shape[1]:
-                    s = math.ceil(math.sqrt(mask.shape[1]/P_out.shape[0]))
-                    P_out = P_out.view(P_out.shape[0], 1, 1).expand(P_out.shape[0], s, s).contiguous().view(-1)
-                    eff_nodes_out = eff_nodes_out.view(eff_nodes_out.shape[0], 1, 1).expand(eff_nodes_out.shape[0], s, s).contiguous().view(-1)
-
-                P_out = torch.logsumexp(torch.log(mask+1e-12) + P_out.view(view_in), dim=dim_out)
-                eff_nodes_in = torch.clamp(torch.sum(mask, dim=dim_in) * eff_nodes_out, max=1)
-                eff_nodes += eff_nodes_in.sum()
-                eff_nodes_out = torch.clamp(torch.sum(mask * eff_nodes_out.view(view_in), dim=dim_out), max=1)
-            eff_nodes += eff_nodes_out.sum()
-            P_out = torch.logsumexp(P_out, dim=0)
-            if self.steps % self.prune_every_k_steps == 0:
-                print(f'eff nodes: {eff_nodes}, eff paths: {P_out}')
-                if self.args.wandb:
-                    wandb.log({'eff nodes': eff_nodes, 'eff paths': P_out})
-        return self.args.alpha * eff_nodes.log() + (1-self.args.alpha) * P_out
-
-    '''
                     DEATH
     '''
+
+    def NPB_death(self, mask, weight, name):
+        num_remove = math.ceil(self.death_rate*self.name2nonzeros[name])
+        if num_remove == 0.0: return weight.data != 0.0
+        num_zeros = self.name2zeros[name]
+
+        score = weight.grad.data.abs() + weight.data.abs()
+        x, idx = torch.sort(score.view(-1))
+        n = idx.shape[0]
+
+        k = math.ceil(num_zeros + num_remove)
+        threshold = x[k-1].item()
+
+        return (score > threshold)
 
     def threshold_death(self, mask, weight, name):
         return (torch.abs(weight.data) > self.threshold)

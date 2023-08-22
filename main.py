@@ -87,47 +87,47 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         scaler = torch.cuda.amp.GradScaler(enabled=True)
 
     eff_nodes, total, eff_paths = 0, 0, 0
-    ones = torch.ones((1, 3, 32, 32)).float().cuda()
+    # ones = torch.ones((1, 3, 32, 32)).float().cuda()
     for batch_idx, (data, target) in enumerate(train_loader):
 
         data, target = data.to(device), target.to(device)
         if args.fp16: data = data.half()
         optimizer.zero_grad()
         with torch.cuda.amp.autocast(enabled=enabled):
-            if 'npb' in args.method:
-                data = (0, ones, data)
-                cum_max_paths, eff_paths, output = model(data)
-                loss = F.nll_loss(output, target)
-                # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
-                eff_paths = eff_paths.sum().log() + cum_max_paths
-                loss = loss - args.beta * eff_paths
-                if args.alpha > 0:
-                    dummies = []
-                    for m in model.NPB_modules:
-                        dummies.append(m.eff_paths)
-                    grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
-                    eff_nodes = 0
-                    total = 0
-                    for grad in grad_dummy:
-                        # print((grad<0).sum())
-                        if len(grad.shape) == 4:
-                            temp = grad.norm(2, dim=(0,2,3))
-                        else:
-                            temp = grad.norm(2, dim=(0))
+            # if 'npb' in args.method:
+            #     data = (0, ones, data)
+            #     cum_max_paths, eff_paths, output = model(data)
+            #     loss = F.nll_loss(output, target)
+            #     # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
+            #     eff_paths = eff_paths.sum().log() + cum_max_paths
+            #     loss = loss - args.beta * eff_paths
+            #     if args.alpha > 0:
+            #         dummies = []
+            #         for m in model.NPB_modules:
+            #             dummies.append(m.eff_paths)
+            #         grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
+            #         eff_nodes = 0
+            #         total = 0
+            #         for grad in grad_dummy:
+            #             # print((grad<0).sum())
+            #             if len(grad.shape) == 4:
+            #                 temp = grad.norm(2, dim=(0,2,3))
+            #             else:
+            #                 temp = grad.norm(2, dim=(0))
 
-                        # eps = (temp == 0)
-                        # eff_nodes += torch.sum(temp / (temp + eps))
-                        temp = torch.tanh(temp * 1e9)
-                        eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
-                        total += temp.shape[0]
+            #             # eps = (temp == 0)
+            #             # eff_nodes += torch.sum(temp / (temp + eps))
+            #             temp = torch.tanh(temp * 1e9)
+            #             eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
+            #             total += temp.shape[0]
 
-                    loss = loss - args.alpha * torch.log(eff_nodes)
-                # reg = (args.alpha * torch.log(eff_nodes) + args.beta * eff_paths)
-                # print(norm.item())
-                # # print(eff_nodes, eff_paths)
-            else:
-                output = model(data)
-                loss = F.nll_loss(output, target)
+            #         loss = loss - args.alpha * torch.log(eff_nodes)
+            #     # reg = (args.alpha * torch.log(eff_nodes) + args.beta * eff_paths)
+            #     # print(norm.item())
+            #     # # print(eff_nodes, eff_paths)
+            # else:
+            output = model(data)
+            loss = F.nll_loss(output, target)
 
 
         train_loss += loss.item()
@@ -150,7 +150,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         # reg_grads = torch.autograd.grad(reg, model.NPB_params)
         # reparameterization_update(model, reg_grads, args.lr)
 
-        post_update(model)
+        # post_update(model)
 
         if mask is not None: mask.step()
 
@@ -200,34 +200,34 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
     # print(f'Eff nodes: {eff_nodes}/{total_nodes}, Eff paths: {eff_paths}, Eff kernels: {eff_kernels}, Eff params: {eff_params}/{total_params}')
 
-    if 'npb' in args.method:
-        optimizer.zero_grad()
-        data = (0, ones, ones)
-        cum_max_paths, eff_paths, output = model(data)
-        eff_paths = eff_paths.sum().log() + cum_max_paths
-        dummies = []
-        norm = 0
-        for m in model.NPB_modules:
-            dummies.append(m.eff_paths)
-            norm += m.g.log()
-        grad_dummy = torch.autograd.grad(eff_paths, dummies)
-        eff_nodes = 0
-        total = 0
-        for grad in grad_dummy:
-            if len(grad.shape) == 4:
-                temp = grad.norm(2, dim=(0,2,3))
-            else:
-                temp = grad.norm(2, dim=(0))
+    # if 'npb' in args.method:
+    #     optimizer.zero_grad()
+    #     data = (0, ones, ones)
+    #     cum_max_paths, eff_paths, output = model(data)
+    #     eff_paths = eff_paths.sum().log() + cum_max_paths
+    #     dummies = []
+    #     norm = 0
+    #     for m in model.NPB_modules:
+    #         dummies.append(m.eff_paths)
+    #         norm += m.g.log()
+    #     grad_dummy = torch.autograd.grad(eff_paths, dummies)
+    #     eff_nodes = 0
+    #     total = 0
+    #     for grad in grad_dummy:
+    #         if len(grad.shape) == 4:
+    #             temp = grad.norm(2, dim=(0,2,3))
+    #         else:
+    #             temp = grad.norm(2, dim=(0))
 
-            eff_nodes += torch.sum(temp != 0)
-            total += temp.shape[0]
-        post_update(model)
+    #         eff_nodes += torch.sum(temp != 0)
+    #         total += temp.shape[0]
+    #     post_update(model)
 
-    print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%), Eff nodes: {}/{}, Eff paths: {}, Norm: {} \n'.format(
+    print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%) \n'.format(
         'Training summary' ,
-        train_loss, correct, n, train_acc, int(eff_nodes), total, round(eff_paths.item(), 2), round(norm.item(), 2)))
+        train_loss, correct, n, train_acc))
     if args.wandb:
-        wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch, 'eff nodes': eff_nodes, 'eff paths': eff_paths, 'norm': norm})
+        wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch})
 
 def evaluate(args, model, device, test_loader, is_test_set=False):
     model.eval()
@@ -427,17 +427,17 @@ def main():
                 raise Exception('Unknown optimizer.')
             lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[int(args.epochs / 2) * args.multiplier, int(args.epochs * 3 / 4) * args.multiplier], last_epoch=-1)
             mask.optimizer = optimizer
-        elif args.method == 'npb':
-            params = model.parameters()
-            if args.optimizer == 'sgd':
-                optimizer = optim.SGD(params,lr=args.lr,momentum=args.momentum,weight_decay=args.l2, nesterov=True)
-            elif args.optimizer == 'adam':
-                optimizer = optim.Adam(params,lr=args.lr,weight_decay=args.l2)
-            else:
-                print('Unknown optimizer: {0}'.format(args.optimizer))
-                raise Exception('Unknown optimizer.')
-            lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[int(args.epochs / 2) * args.multiplier, int(args.epochs * 3 / 4) * args.multiplier], last_epoch=-1)
-            mask.optimizer = optimizer
+        # elif args.method == 'npb':
+        #     params = model.parameters()
+        #     if args.optimizer == 'sgd':
+        #         optimizer = optim.SGD(params,lr=args.lr,momentum=args.momentum,weight_decay=args.l2, nesterov=True)
+        #     elif args.optimizer == 'adam':
+        #         optimizer = optim.Adam(params,lr=args.lr,weight_decay=args.l2)
+        #     else:
+        #         print('Unknown optimizer: {0}'.format(args.optimizer))
+        #         raise Exception('Unknown optimizer.')
+        #     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[int(args.epochs / 2) * args.multiplier, int(args.epochs * 3 / 4) * args.multiplier], last_epoch=-1)
+        #     mask.optimizer = optimizer
 
         for epoch in range(1, args.epochs*args.multiplier + 1):
             t0 = time.time()
