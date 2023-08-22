@@ -642,7 +642,7 @@ class Masking(object):
         num_zeros = self.name2zeros[name]
 
         score = weight.grad.data.clone().abs() + weight.data.abs()
-        print(weight.grad.data.clone().abs())
+        print(weight.grad.data.clone().abs().sum())
         x, idx = torch.sort(score.view(-1))
         n = idx.shape[0]
 
