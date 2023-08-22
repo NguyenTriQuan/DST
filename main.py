@@ -223,8 +223,8 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     #         total += temp.shape[0]
     #     post_update(model)
 
-    print_and_log('\n{}: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%) \n'.format(
-        'Training summary' ,
+    print_and_log('\n Training summary: Epoch: {}, Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%) \n'.format(
+        epoch ,
         train_loss, correct, n, train_acc))
     if args.wandb:
         wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch})
