@@ -87,48 +87,42 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         scaler = torch.cuda.amp.GradScaler(enabled=True)
 
     eff_nodes, total, eff_paths = 0, 0, 0
-    # ones = torch.ones((1, 3, 32, 32)).float().cuda()
+    ones = torch.ones((1, 3, 32, 32)).float().cuda()
     for batch_idx, (data, target) in enumerate(train_loader):
 
         data, target = data.to(device), target.to(device)
         if args.fp16: data = data.half()
         optimizer.zero_grad()
         with torch.cuda.amp.autocast(enabled=enabled):
-            # if 'npb' in args.method:
-            #     data = (0, ones, data)
-            #     cum_max_paths, eff_paths, output = model(data)
-            #     loss = F.nll_loss(output, target)
-            #     # eff_paths = torch.logsumexp(eff_paths, dim=(0,1))
-            #     eff_paths = eff_paths.sum().log() + cum_max_paths
-            #     loss = loss - args.beta * eff_paths
-            #     if args.alpha > 0:
-            #         dummies = []
-            #         for m in model.NPB_modules:
-            #             dummies.append(m.eff_paths)
-            #         grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
-            #         eff_nodes = 0
-            #         total = 0
-            #         for grad in grad_dummy:
-            #             # print((grad<0).sum())
-            #             if len(grad.shape) == 4:
-            #                 temp = grad.norm(2, dim=(0,2,3))
-            #             else:
-            #                 temp = grad.norm(2, dim=(0))
+            if 'npb' in args.method:
+                data = (0, ones, data)
+                cum_max_paths, eff_paths, output = model(data)
+                loss = F.nll_loss(output, target)
+                eff_paths = eff_paths.sum().log() + cum_max_paths
+                loss = loss - args.beta * eff_paths
+                if args.alpha > 0:
+                    dummies = []
+                    for m in model.NPB_modules:
+                        dummies.append(m.eff_paths)
+                    grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
+                    eff_nodes = 0
+                    total = 0
+                    for grad in grad_dummy:
+                        if len(grad.shape) == 4:
+                            temp = grad.abs().sum(dim=(0,2,3))
+                        else:
+                            temp = grad.abs().sum(dim=(0))
 
-            #             # eps = (temp == 0)
-            #             # eff_nodes += torch.sum(temp / (temp + eps))
-            #             temp = torch.tanh(temp * 1e9)
-            #             eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
-            #             total += temp.shape[0]
+                        C = temp.max().detach()
+                        temp = torch.tanh(temp / C * 2)
+                        eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
+                        total += temp.shape[0]
 
-            #         loss = loss - args.alpha * torch.log(eff_nodes)
-            #     # reg = (args.alpha * torch.log(eff_nodes) + args.beta * eff_paths)
-            #     # print(norm.item())
-            #     # # print(eff_nodes, eff_paths)
+                    loss = loss - args.alpha * torch.log(eff_nodes)
+
             # else:
-            output = model(data)
-            loss = F.nll_loss(output, target)
-
+            # output = model(data)
+            # loss = F.nll_loss(output, target)
 
         train_loss += loss.item()
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
@@ -147,10 +141,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
             loss.backward()
             optimizer.step()
 
-        # reg_grads = torch.autograd.grad(reg, model.NPB_params)
-        # reparameterization_update(model, reg_grads, args.lr)
-
-        # post_update(model)
+        post_update(model)
 
         if mask is not None: mask.step()
 
@@ -223,11 +214,11 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
     #         total += temp.shape[0]
     #     post_update(model)
 
-    print_and_log('\n Training summary: Epoch: {}, Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%) \n'.format(
+    print_and_log('\n Training summary: Epoch: {}, Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%, Eff nodes: {}, Eff paths: {}) \n'.format(
         epoch ,
-        train_loss, correct, n, train_acc))
+        train_loss, correct, n, train_acc, eff_nodes, eff_paths))
     if args.wandb:
-        wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch})
+        wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch, 'eff nodes': eff_nodes, 'eff paths': eff_paths})
 
 def evaluate(args, model, device, test_loader, is_test_set=False):
     model.eval()
