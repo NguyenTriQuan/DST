@@ -94,35 +94,35 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         if args.fp16: data = data.half()
         optimizer.zero_grad()
         with torch.cuda.amp.autocast(enabled=enabled):
-            if 'npb' in args.method:
-                data = (0, ones, data)
-                cum_max_paths, eff_paths, output = model(data)
-                loss = F.nll_loss(output, target)
-                eff_paths = eff_paths.sum().log() + cum_max_paths
-                loss = loss - args.beta * eff_paths
-                if args.alpha > 0:
-                    dummies = []
-                    for m in model.NPB_modules:
-                        dummies.append(m.eff_paths)
-                    grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
-                    eff_nodes = 0
-                    total = 0
-                    for grad in grad_dummy:
-                        if len(grad.shape) == 4:
-                            temp = grad.abs().sum(dim=(0,2,3))
-                        else:
-                            temp = grad.abs().sum(dim=(0))
+            # if 'npb' in args.method:
+            #     data = (0, ones, data)
+            #     cum_max_paths, eff_paths, output = model(data)
+            #     loss = F.nll_loss(output, target)
+            #     eff_paths = eff_paths.sum().log() + cum_max_paths
+            #     loss = loss - args.beta * eff_paths
+            #     if args.alpha > 0:
+            #         dummies = []
+            #         for m in model.NPB_modules:
+            #             dummies.append(m.eff_paths)
+            #         grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
+            #         eff_nodes = 0
+            #         total = 0
+            #         for grad in grad_dummy:
+            #             if len(grad.shape) == 4:
+            #                 temp = grad.abs().sum(dim=(0,2,3))
+            #             else:
+            #                 temp = grad.abs().sum(dim=(0))
 
-                        C = temp.max().detach()
-                        temp = torch.tanh(temp / C * 2)
-                        eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
-                        total += temp.shape[0]
+            #             C = temp.max().detach()
+            #             temp = torch.tanh(temp / C * 2)
+            #             eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
+            #             total += temp.shape[0]
 
-                    loss = loss - args.alpha * torch.log(eff_nodes)
+                    # loss = loss - args.alpha * torch.log(eff_nodes)
 
             # else:
-            # output = model(data)
-            # loss = F.nll_loss(output, target)
+            output = model(data)
+            loss = F.nll_loss(output, target)
 
         train_loss += loss.item()
         pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
@@ -141,7 +141,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
             loss.backward()
             optimizer.step()
 
-        post_update(model)
+        # post_update(model)
 
         if mask is not None: mask.step()
 
@@ -191,34 +191,39 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
     # print(f'Eff nodes: {eff_nodes}/{total_nodes}, Eff paths: {eff_paths}, Eff kernels: {eff_kernels}, Eff params: {eff_params}/{total_params}')
 
-    if 'npb' in args.method:
-        optimizer.zero_grad()
-        data = (0, ones, ones)
-        cum_max_paths, eff_paths, output = model(data)
-        eff_paths = eff_paths.sum().log() + cum_max_paths
-        dummies = []
-        norm = 0
-        for m in model.NPB_modules:
-            dummies.append(m.eff_paths)
-            norm += m.g.log()
-        grad_dummy = torch.autograd.grad(eff_paths, dummies)
-        eff_nodes = 0
-        total = 0
-        for grad in grad_dummy:
-            if len(grad.shape) == 4:
-                temp = grad.norm(2, dim=(0,2,3))
-            else:
-                temp = grad.norm(2, dim=(0))
+    # if 'npb' in args.method:
+    #     optimizer.zero_grad()
+    #     data = (0, ones, ones)
+    #     cum_max_paths, eff_paths, output = model(data)
+    #     eff_paths = eff_paths.sum().log() + cum_max_paths
+    #     dummies = []
+    #     norm = 0
+    #     for m in model.NPB_modules:
+    #         dummies.append(m.eff_paths)
+    #         norm += m.g.log()
+    #     grad_dummy = torch.autograd.grad(eff_paths, dummies)
+    #     eff_nodes = 0
+    #     total = 0
+    #     for grad in grad_dummy:
+    #         if len(grad.shape) == 4:
+    #             temp = grad.norm(2, dim=(0,2,3))
+    #         else:
+    #             temp = grad.norm(2, dim=(0))
 
-            eff_nodes += torch.sum(temp != 0)
-            total += temp.shape[0]
-        post_update(model)
+    #         eff_nodes += torch.sum(temp != 0)
+    #         total += temp.shape[0]
+    #     post_update(model)
 
-    print_and_log('\n Training summary: Epoch: {}, Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%, Eff nodes: {}, Eff paths: {}) \n'.format(
-        epoch ,
-        train_loss, correct, n, train_acc, eff_nodes, eff_paths))
+    # print_and_log('\n Training summary: Epoch: {}, Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%, Eff nodes: {}, Eff paths: {}) \n'.format(
+    #     epoch ,
+    #     train_loss, correct, n, train_acc, eff_nodes, eff_paths))
+    # if args.wandb:
+    #     wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch, 'eff nodes': eff_nodes, 'eff paths': eff_paths})
+
+    print_and_log('\n Training summary: Epoch: {}, Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%) \n'.format(
+        epoch , train_loss, correct, n, train_acc))
     if args.wandb:
-        wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch, 'eff nodes': eff_nodes, 'eff paths': eff_paths})
+        wandb.log({'train acc': train_acc, 'train loss': train_loss, 'epoch':epoch})
 
 def evaluate(args, model, device, test_loader, is_test_set=False):
     model.eval()

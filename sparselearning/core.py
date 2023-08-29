@@ -143,8 +143,8 @@ def NPB_objective(model):
         else:
             temp = grad.abs().sum(dim=(0))
 
-        C = temp.max().detach()
-        temp = torch.tanh(temp / C)
+        # C = temp.max().detach()
+        temp = torch.tanh(temp * 1e9)
         eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
 
     print(f'eff nodes: {eff_nodes}, eff paths: {eff_paths}')
@@ -206,64 +206,64 @@ def linear_forward(self, x, weight, bias):
 
 def NPB_forward(self, x):
     
-    if self.training:
-        self.mask = self.get_mask()
-        cum_max_paths, eff_paths, inp = x
-        max_paths = eff_paths.max()
-        eff_paths = self.base_func(eff_paths / max_paths, self.mask, None)
-        out = self.base_func(inp, self.get_weight(), self.bias)
-        self.eff_paths = eff_paths
-        return cum_max_paths + max_paths.log(), eff_paths, out
-    else:
-        return self.base_func(x, self.get_weight(), self.bias)
-    
-    # if self.npb:
-    #     cum_max_paths, eff_paths = x
+    # if self.training:
+    #     self.mask = self.get_mask()
+    #     cum_max_paths, eff_paths, inp = x
     #     max_paths = eff_paths.max()
-    #     eff_paths = self.base_func(eff_paths / max_paths, self.get_mask(), None)
+    #     eff_paths = self.base_func(eff_paths / max_paths, self.mask, None)
+    #     out = self.base_func(inp, self.get_weight(), self.bias)
     #     self.eff_paths = eff_paths
-    #     return cum_max_paths + max_paths.log(), eff_paths
+    #     return cum_max_paths + max_paths.log(), eff_paths, out
     # else:
     #     return self.base_func(x, self.get_weight(), self.bias)
     
-def NPB_dummy_forward(self, x):
-    if self.training:
-        return x[0], x[1], self.original_forward(x[2])
+    if self.npb:
+        cum_max_paths, eff_paths = x
+        max_paths = eff_paths.max()
+        eff_paths = self.base_func(eff_paths / max_paths, self.get_mask(), None)
+        self.eff_paths = eff_paths
+        return cum_max_paths + max_paths.log(), eff_paths
     else:
-        return self.original_forward(x)
-
-    # if self.npb:
-    #     return x[0], x[1]
+        return self.base_func(x, self.get_weight(), self.bias)
+    
+def NPB_dummy_forward(self, x):
+    # if self.training:
+    #     return x[0], x[1], self.original_forward(x[2])
     # else:
     #     return self.original_forward(x)
+
+    if self.npb:
+        return x[0], x[1]
+    else:
+        return self.original_forward(x)
     
 def NPB_stable_forward(self, x):
-    if self.training:
-        return x[0], self.original_forward(x[1]), self.original_forward(x[2])
-    else:
-        return self.original_forward(x)
-
-    # if self.npb:
-    #     return x[0], self.original_forward(x[1])
+    # if self.training:
+    #     return x[0], self.original_forward(x[1]), self.original_forward(x[2])
     # else:
     #     return self.original_forward(x)
 
-def NPB_residual_forward(self, x, y):
-    if self.training:
-        if x[0] > y[0]:
-            return x[0], x[1] + (y[1] / (x[0]-y[0]).exp()), x[2] + y[2]
-        else:
-            return y[0], (x[1] / (y[0]-x[0]).exp()) + y[1], x[2] + y[2]
+    if self.npb:
+        return x[0], self.original_forward(x[1])
     else:
-        return self.original_forward(x, y)
+        return self.original_forward(x)
 
-    # if self.npb:
+def NPB_residual_forward(self, x, y):
+    # if self.training:
     #     if x[0] > y[0]:
-    #         return x[0], x[1] + (y[1] / (x[0]-y[0]).exp())
+    #         return x[0], x[1] + (y[1] / (x[0]-y[0]).exp()), x[2] + y[2]
     #     else:
-    #         return y[0], (x[1] / (y[0]-x[0]).exp()) + y[1]
+    #         return y[0], (x[1] / (y[0]-x[0]).exp()) + y[1], x[2] + y[2]
     # else:
     #     return self.original_forward(x, y)
+
+    if self.npb:
+        if x[0] > y[0]:
+            return x[0], x[1] + (y[1] / (x[0]-y[0]).exp())
+        else:
+            return y[0], (x[1] / (y[0]-x[0]).exp()) + y[1]
+    else:
+        return self.original_forward(x, y)
 
 def NPB_register(model, args):
     model.apply(lambda m: setattr(m, "npb", False))
