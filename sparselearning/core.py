@@ -132,20 +132,22 @@ def NPB_objective(model):
     data = (0, ones)
     cum_max_paths, eff_paths = model(data)
     eff_paths = eff_paths.sum().log() + cum_max_paths
-    dummies = []
-    for m in model.NPB_modules:
-        dummies.append(m.eff_paths)
-    grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
     eff_nodes = 0
-    for grad in grad_dummy:
-        if len(grad.shape) == 4:
-            temp = grad.abs().sum(dim=(0,2,3))
-        else:
-            temp = grad.abs().sum(dim=(0))
+    # dummies = []
+    for m in model.NPB_modules:
+        eff_nodes += m.eff_nodes_out
+    #     dummies.append(m.eff_paths)
+    # grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
+    # eff_nodes = 0
+    # for grad in grad_dummy:
+    #     if len(grad.shape) == 4:
+    #         temp = grad.abs().sum(dim=(0,2,3))
+    #     else:
+    #         temp = grad.abs().sum(dim=(0))
 
-        # C = temp.max().detach()
-        temp = torch.tanh(temp * 1e9)
-        eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
+    #     # C = temp.max().detach()
+    #     temp = torch.tanh(temp * 1e9)
+    #     eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
 
     print(f'eff nodes: {eff_nodes}, eff paths: {eff_paths}')
     return eff_paths, eff_nodes
@@ -222,6 +224,9 @@ def NPB_forward(self, x):
         max_paths = eff_paths.max()
         eff_paths = self.base_func(eff_paths / max_paths, self.get_mask(), None)
         self.eff_paths = eff_paths
+        eff_nodes_in = torch.clamp(eff_paths, max=1)
+        # self.eff_nodes_in = torch.clamp(torch.sum(self.weight_mask, dim=self.dim_in) * eff_nodes_in, max=1)
+        self.eff_nodes_out = torch.clamp(torch.sum(self.weight_mask * eff_nodes_in.view(self.view_in), dim=self.dim_out), max=1)
         return cum_max_paths + max_paths.log(), eff_paths
     else:
         return self.base_func(x, self.get_weight(), self.bias)
@@ -289,8 +294,16 @@ def NPB_register(model, args):
                 setattr(m, 'get_mask', get_mask_by_weight.__get__(m, m.__class__))
 
             if isinstance(m, nn.Linear):
+                m.dim_in = (0)
+                m.dim_out = (1)
+                m.view_in = (1, -1)
+                m.view_out = (-1, 1)
                 setattr(m, 'base_func', linear_forward.__get__(m, m.__class__))
             else:
+                m.dim_in = (0,2,3)
+                m.dim_out = (1,2,3)
+                m.view_in = (1, -1, 1, 1)
+                m.view_out = (-1, 1, 1, 1)
                 setattr(m, 'base_func', m._conv_forward)
 
             setattr(m, 'forward', NPB_forward.__get__(m, m.__class__))
