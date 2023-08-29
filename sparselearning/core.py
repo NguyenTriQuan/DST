@@ -519,7 +519,8 @@ class Masking(object):
                         self.optimizer.zero_grad()
                         self.modules[-1].apply(lambda m: setattr(m, "npb", True))
                         eff_paths, eff_nodes = NPB_objective(self.modules[-1])
-                        loss = self.args.alpha * eff_nodes.log() + self.args.beta * eff_paths
+                        # loss = self.args.alpha * eff_nodes.log() + self.args.beta * eff_paths
+                        loss = eff_paths
                         loss.backward()
                         self.modules[-1].apply(lambda m: setattr(m, "npb", False))
                         if self.args.wandb:
@@ -662,7 +663,8 @@ class Masking(object):
             self.optimizer.zero_grad()
             self.modules[-1].apply(lambda m: setattr(m, "npb", True))
             eff_paths, eff_nodes = NPB_objective(self.modules[-1])
-            loss = self.args.alpha * eff_nodes.log() + self.args.beta * eff_paths
+            # loss = self.args.alpha * eff_nodes.log() + self.args.beta * eff_paths
+            loss = eff_paths
             loss.backward()
             self.modules[-1].apply(lambda m: setattr(m, "npb", False))
 
