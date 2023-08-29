@@ -135,7 +135,7 @@ def NPB_objective(model):
     eff_nodes = 0
     # dummies = []
     for m in model.NPB_modules:
-        eff_nodes += m.eff_nodes_out.sum()
+        eff_nodes += m.eff_nodes_out
     #     dummies.append(m.eff_paths)
     # grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
     # eff_nodes = 0
@@ -226,7 +226,7 @@ def NPB_forward(self, x):
         self.eff_paths = eff_paths
         eff_nodes_in = torch.clamp(eff_paths, max=1)
         # self.eff_nodes_in = torch.clamp(torch.sum(self.weight_mask, dim=self.dim_in) * eff_nodes_in, max=1)
-        self.eff_nodes_out = torch.clamp(torch.sum(self.weight_mask * eff_nodes_in.view(self.view_in), dim=self.dim_out), max=1)
+        self.eff_nodes_out = torch.clamp(torch.sum(self.weight_mask * eff_nodes_in.view(self.view_in), dim=self.dim_out), max=1).sum()
         return cum_max_paths + max_paths.log(), eff_paths
     else:
         return self.base_func(x, self.get_weight(), self.bias)
