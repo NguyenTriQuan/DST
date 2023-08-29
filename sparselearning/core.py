@@ -135,7 +135,7 @@ def NPB_objective(model):
     eff_nodes = 0
     # dummies = []
     for m in model.NPB_modules:
-        eff_nodes += m.eff_nodes_out
+        eff_nodes += m.eff_nodes_out.sum()
     #     dummies.append(m.eff_paths)
     # grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
     # eff_nodes = 0
