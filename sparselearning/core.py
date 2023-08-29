@@ -186,7 +186,7 @@ def post_update(model):
     for m in model.NPB_modules:
         m.mask = m.get_mask().detach().clone()
         m.eff_paths = None
-        m.score.data = m.g * m.score.data / m.score.data.norm(2).detach()
+        # m.score.data = m.g * m.score.data / m.score.data.norm(2).detach()
 
 def get_mask_by_weight(self):
     return TopK.apply(self.weight.abs(), self.num_zeros)

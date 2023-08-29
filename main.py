@@ -191,28 +191,28 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
 
     # print(f'Eff nodes: {eff_nodes}/{total_nodes}, Eff paths: {eff_paths}, Eff kernels: {eff_kernels}, Eff params: {eff_params}/{total_params}')
 
-    # if 'npb' in args.method:
-    #     optimizer.zero_grad()
-    #     data = (0, ones, ones)
-    #     cum_max_paths, eff_paths, output = model(data)
-    #     eff_paths = eff_paths.sum().log() + cum_max_paths
-    #     dummies = []
-    #     norm = 0
-    #     for m in model.NPB_modules:
-    #         dummies.append(m.eff_paths)
-    #         norm += m.g.log()
-    #     grad_dummy = torch.autograd.grad(eff_paths, dummies)
-    #     eff_nodes = 0
-    #     total = 0
-    #     for grad in grad_dummy:
-    #         if len(grad.shape) == 4:
-    #             temp = grad.norm(2, dim=(0,2,3))
-    #         else:
-    #             temp = grad.norm(2, dim=(0))
+    if 'npb' in args.method:
+        optimizer.zero_grad()
+        data = (0, ones, ones)
+        cum_max_paths, eff_paths, output = model(data)
+        eff_paths = eff_paths.sum().log() + cum_max_paths
+        dummies = []
+        norm = 0
+        for m in model.NPB_modules:
+            dummies.append(m.eff_paths)
+            norm += m.g.log()
+        grad_dummy = torch.autograd.grad(eff_paths, dummies)
+        eff_nodes = 0
+        total = 0
+        for grad in grad_dummy:
+            if len(grad.shape) == 4:
+                temp = grad.norm(2, dim=(0,2,3))
+            else:
+                temp = grad.norm(2, dim=(0))
 
-    #         eff_nodes += torch.sum(temp != 0)
-    #         total += temp.shape[0]
-    #     post_update(model)
+            eff_nodes += torch.sum(temp != 0)
+            total += temp.shape[0]
+        post_update(model)
 
     print_and_log('\n Training summary: Epoch: {}, Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%, Eff nodes: {}, Eff paths: {}) \n'.format(
         epoch ,
