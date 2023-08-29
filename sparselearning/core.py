@@ -221,16 +221,15 @@ def NPB_forward(self, x):
     
     if self.npb:
         cum_max_paths, eff_paths = x
-        max_paths = eff_paths.max()
-        self.mask = self.get_mask()
-        eff_paths = self.base_func(eff_paths / max_paths, self.mask, None)
-        self.eff_paths = eff_paths
         if len(eff_paths.shape) == 2:
             eff_nodes_in = torch.clamp(eff_paths.sum(0), max=1)
         else:
             eff_nodes_in = torch.clamp(eff_paths.sum((0,2,3)), max=1)
+        max_paths = eff_paths.max()
+        self.mask = self.get_mask()
+        eff_paths = self.base_func(eff_paths / max_paths, self.mask, None)
+        self.eff_paths = eff_paths
         # self.eff_nodes_in = torch.clamp(torch.sum(self.weight_mask, dim=self.dim_in) * eff_nodes_in, max=1)
-        print(eff_nodes_in.shape, self.mask.shape)
         self.eff_nodes_out = torch.clamp(torch.sum(self.mask * eff_nodes_in.view(self.view_in), dim=self.dim_out), max=1).sum()
         return cum_max_paths + max_paths.log(), eff_paths
     else:
