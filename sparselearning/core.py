@@ -695,7 +695,7 @@ class Masking(object):
         if num_remove == 0.0: return weight.data != 0.0
         num_zeros = self.name2zeros[name]
 
-        score = weight.grad.data.clone().abs() + weight.data.abs()
+        score = weight.grad.data.clone() * weight.data.clone()
         x, idx = torch.sort(score.view(-1))
         n = idx.shape[0]
 
