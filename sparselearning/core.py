@@ -523,6 +523,13 @@ class Masking(object):
                     self.truncate_weights()
                     _, _ = self.fired_masks_update()
                     self.print_nonzero_counts()
+                    self.optimizer.zero_grad()
+
+                self.modules[-1].apply(lambda m: setattr(m, "npb", True))
+                eff_paths, eff_nodes = NPB_objective(self.modules[-1], self.args.alpha, self.args.beta)
+                self.modules[-1].apply(lambda m: setattr(m, "npb", False))
+                if self.args.wandb:
+                    wandb.log({'eff nodes': eff_nodes, 'eff paths': eff_paths})
 
 
     def add_module(self, module, density, sparse_init='ER'):
@@ -635,9 +642,8 @@ class Masking(object):
             self.modules[-1].apply(lambda m: setattr(m, "npb", True))
             eff_paths, eff_nodes = NPB_objective(self.modules[-1], self.args.alpha, self.args.beta)
             self.modules[-1].apply(lambda m: setattr(m, "npb", False))
-            if self.args.wandb:
-                wandb.log({'eff nodes': eff_nodes, 'eff paths': eff_paths})
-
+            # if self.args.wandb:
+            #     wandb.log({'eff nodes': eff_nodes, 'eff paths': eff_paths})
 
         for module in self.modules:
             for name, weight in module.named_parameters():
@@ -661,6 +667,7 @@ class Masking(object):
                 self.num_remove[name] = int(self.name2nonzeros[name] - new_mask.sum().item())
                 self.masks[name][:] = new_mask
         
+        self.apply_mask()
         if self.growth_mode == 'NPB':
             self.optimizer.zero_grad()
             self.modules[-1].apply(lambda m: setattr(m, "npb", True))
