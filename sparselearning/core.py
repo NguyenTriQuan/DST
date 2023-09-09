@@ -127,15 +127,20 @@ def normalize_weight(model):
             m.weight.data[~mask] = 0
             m.post_update()
 
-def NPB_objective(model):
+def NPB_objective(model, alpha, beta):
     ones = torch.ones((1, 3, 32, 32)).float().cuda()
     data = (0, ones)
     cum_max_paths, eff_paths = model(data)
     eff_paths = eff_paths.sum().log() + cum_max_paths
     eff_nodes = 0
-    # dummies = []
+    eff_paths.backward()
     for m in model.NPB_modules:
-        eff_nodes += m.eff_nodes_out
+        layer_eff_nodes = (m.weight.grad.abs() * m.mask).sum(m.dim_out)
+        eff_nodes += (layer_eff_nodes > 0).detach().sum()
+        m.weight.grad = m.weight.grad * (alpha * (1-layer_eff_nodes) + beta)
+    # dummies = []
+    # for m in model.NPB_modules:
+    #     eff_nodes += m.eff_nodes_out
     #     dummies.append(m.eff_paths)
     # grad_dummy = torch.autograd.grad(eff_paths, dummies, retain_graph=True, create_graph=True)
     # eff_nodes = 0
@@ -221,16 +226,16 @@ def NPB_forward(self, x):
     
     if self.npb:
         cum_max_paths, eff_paths = x
-        if len(eff_paths.shape) == 2:
-            eff_nodes_in = torch.clamp(eff_paths.detach().sum(0), max=1)
-        else:
-            eff_nodes_in = torch.clamp(eff_paths.detach().sum((0,2,3)), max=1)
+        # if len(eff_paths.shape) == 2:
+        #     eff_nodes_in = torch.clamp(eff_paths.detach().sum(0), max=1)
+        # else:
+        #     eff_nodes_in = torch.clamp(eff_paths.detach().sum((0,2,3)), max=1)
         max_paths = eff_paths.max()
         self.mask = self.get_mask()
         eff_paths = self.base_func(eff_paths / max_paths, self.mask, None)
-        self.eff_paths = eff_paths
-        # self.eff_nodes_in = torch.clamp(torch.sum(self.weight_mask, dim=self.dim_in) * eff_nodes_in, max=1)
-        self.eff_nodes_out = torch.clamp(torch.sum(self.mask * eff_nodes_in.view(self.view_in), dim=self.dim_out), max=1).sum()
+        # self.eff_paths = eff_paths
+        # # self.eff_nodes_in = torch.clamp(torch.sum(self.weight_mask, dim=self.dim_in) * eff_nodes_in, max=1)
+        # self.eff_nodes_out = torch.clamp(torch.sum(self.mask * eff_nodes_in.view(self.view_in), dim=self.dim_out), max=1).sum()
         return cum_max_paths + max_paths.log(), eff_paths
     else:
         return self.base_func(x, self.get_weight(), self.bias)
@@ -515,17 +520,6 @@ class Masking(object):
                 if self.args.method == 'score_npb':
                     self.fired_masks_update()
                 else:
-                    if self.args.method == 'npb':
-                        self.optimizer.zero_grad()
-                        self.modules[-1].apply(lambda m: setattr(m, "npb", True))
-                        eff_paths, eff_nodes = NPB_objective(self.modules[-1])
-                        # loss = self.args.alpha * eff_nodes.log() + self.args.beta * eff_paths
-                        loss = eff_paths
-                        loss.backward()
-                        self.modules[-1].apply(lambda m: setattr(m, "npb", False))
-                        if self.args.wandb:
-                            wandb.log({'eff nodes': eff_nodes, 'eff paths': eff_paths})
-
                     self.truncate_weights()
                     _, _ = self.fired_masks_update()
                     self.print_nonzero_counts()
@@ -636,6 +630,15 @@ class Masking(object):
 
     def truncate_weights(self):
 
+        if self.death_mode == 'NPB':
+            self.optimizer.zero_grad()
+            self.modules[-1].apply(lambda m: setattr(m, "npb", True))
+            eff_paths, eff_nodes = NPB_objective(self.modules[-1])
+            self.modules[-1].apply(lambda m: setattr(m, "npb", False))
+            if self.args.wandb:
+                wandb.log({'eff nodes': eff_nodes, 'eff paths': eff_paths})
+
+
         for module in self.modules:
             for name, weight in module.named_parameters():
                 if name not in self.masks: continue
@@ -659,14 +662,12 @@ class Masking(object):
                 self.masks[name][:] = new_mask
         
         if self.growth_mode == 'NPB':
-            self.apply_mask()
             self.optimizer.zero_grad()
             self.modules[-1].apply(lambda m: setattr(m, "npb", True))
             eff_paths, eff_nodes = NPB_objective(self.modules[-1])
-            # loss = self.args.alpha * eff_nodes.log() + self.args.beta * eff_paths
-            loss = eff_paths
-            loss.backward()
             self.modules[-1].apply(lambda m: setattr(m, "npb", False))
+            # if self.args.wandb:
+            #     wandb.log({'eff nodes': eff_nodes, 'eff paths': eff_paths})
 
         for module in self.modules:
             for name, weight in module.named_parameters():
@@ -829,7 +830,7 @@ class Masking(object):
 
     def NPB_growth(self, name, new_mask, weight):
         total_regrowth = self.num_remove[name]
-        grad = weight.grad.data.clone().abs()
+        grad = weight.grad.data.abs().clone()
         grad = grad*(new_mask==0).float()
 
         y, idx = torch.sort(torch.abs(grad).flatten(), descending=True)

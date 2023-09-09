@@ -87,7 +87,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
         scaler = torch.cuda.amp.GradScaler(enabled=True)
 
     eff_nodes, total, eff_paths = 0, 0, 0
-    ones = torch.ones((1, 3, 32, 32)).float().cuda()
+    # ones = torch.ones((1, 3, 32, 32)).float().cuda()
     for batch_idx, (data, target) in enumerate(train_loader):
 
         data, target = data.to(device), target.to(device)
@@ -118,7 +118,7 @@ def train(args, model, device, train_loader, optimizer, epoch, mask=None):
             #             eff_nodes += torch.sum((temp != 0).long() - temp.detach() + temp)
             #             total += temp.shape[0]
 
-                    # loss = loss - args.alpha * torch.log(eff_nodes)
+                    # loss = loss - args.alpha * eff_nodes
 
             # else:
             output = model(data)
