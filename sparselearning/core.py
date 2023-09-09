@@ -137,7 +137,7 @@ def NPB_objective(model, alpha, beta):
     for m in model.NPB_modules:
         layer_eff_nodes = (m.weight.grad.abs() * m.mask).sum(m.dim_out)
         eff_nodes += (layer_eff_nodes > 0).detach().sum()
-        m.weight.grad = m.weight.grad * (alpha * (1-layer_eff_nodes) + beta)
+        m.weight.grad = m.weight.grad * (alpha * (1-layer_eff_nodes.view(m.view_out)) + beta)
     # dummies = []
     # for m in model.NPB_modules:
     #     eff_nodes += m.eff_nodes_out
