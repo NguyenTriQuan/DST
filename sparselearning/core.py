@@ -633,7 +633,7 @@ class Masking(object):
         if self.death_mode == 'NPB':
             self.optimizer.zero_grad()
             self.modules[-1].apply(lambda m: setattr(m, "npb", True))
-            eff_paths, eff_nodes = NPB_objective(self.modules[-1])
+            eff_paths, eff_nodes = NPB_objective(self.modules[-1], self.args.alpha, self.args.beta)
             self.modules[-1].apply(lambda m: setattr(m, "npb", False))
             if self.args.wandb:
                 wandb.log({'eff nodes': eff_nodes, 'eff paths': eff_paths})
@@ -664,7 +664,7 @@ class Masking(object):
         if self.growth_mode == 'NPB':
             self.optimizer.zero_grad()
             self.modules[-1].apply(lambda m: setattr(m, "npb", True))
-            eff_paths, eff_nodes = NPB_objective(self.modules[-1])
+            eff_paths, eff_nodes = NPB_objective(self.modules[-1], self.args.alpha, self.args.beta)
             self.modules[-1].apply(lambda m: setattr(m, "npb", False))
             # if self.args.wandb:
             #     wandb.log({'eff nodes': eff_nodes, 'eff paths': eff_paths})
