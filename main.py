@@ -23,7 +23,7 @@ import wandb
 warnings.filterwarnings("ignore", category=UserWarning)
 cudnn.benchmark = True
 cudnn.deterministic = True
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,4,5,6,7"
 if not os.path.exists('./models'): os.mkdir('./models')
 if not os.path.exists('./logs'): os.mkdir('./logs')
 logger = None
