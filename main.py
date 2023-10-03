@@ -274,7 +274,7 @@ def main():
                         help='how many batches to wait before logging training status')
     parser.add_argument('--optimizer', type=str, default='sgd', help='The optimizer to use. Default: sgd. Options: sgd, adam.')
     randomhash = ''.join(str(time.time()).split('.'))
-    parser.add_argument('--save', type=str, default=randomhash + '.pt',
+    parser.add_argument('--save', type=str, default=f'cm/archive/quannt40/dst/checkpoints/{randomhash}.pt',
                         help='path to save the final model')
     parser.add_argument('--data', type=str, default='mnist')
     parser.add_argument('--decay_frequency', type=int, default=25000)
@@ -323,7 +323,7 @@ def main():
             # Track hyperparameters and run metadata
             config=args
         )
-    
+    args.save_path = 'cm/archive/quannt40/dst'
     for i in range(args.iters):
         print_and_log("\nIteration start: {0}/{1}\n".format(i+1, args.iters))
 
